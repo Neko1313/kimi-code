@@ -75,7 +75,11 @@ describe('PluginRuntimeHost', () => {
 
   async function makeHost(moduleSource: string, enabled = true): Promise<PluginRuntimeHost> {
     await writeFixturePlugin(root, moduleSource);
-    const plugins = stubPluginService({ enabledPluginIds: ['fixture-runtime'], sessionStarts: [] });
+    const plugins = stubPluginService({
+      enabledPluginIds: ['fixture-runtime'],
+      sessionStarts: [],
+      summaries: [{ id: 'fixture-runtime', enabled: true, state: 'ok' }],
+    });
     plugins.getPluginInfo = async () => stubPluginInfo(root);
     const host = new PluginRuntimeHost(
       plugins,
@@ -192,7 +196,11 @@ describe('PluginRuntimeHost', () => {
 
   it('runs the kimi-workflow plugin end to end', async () => {
     const pluginRoot = path.resolve(__dirname, '../../../../core-plugins/kimi-workflow');
-    const plugins = stubPluginService({ enabledPluginIds: ['kimi-workflow'], sessionStarts: [] });
+    const plugins = stubPluginService({
+      enabledPluginIds: ['kimi-workflow'],
+      sessionStarts: [],
+      summaries: [{ id: 'kimi-workflow', enabled: true, state: 'ok' }],
+    });
     plugins.getPluginInfo = async () =>
       ({
         id: 'kimi-workflow',

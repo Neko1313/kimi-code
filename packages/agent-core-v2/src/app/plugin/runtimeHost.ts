@@ -311,8 +311,10 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
 
   private async load(): Promise<void> {
     if (!this.flags.enabled(PLUGIN_RUNTIME_FLAG_ID)) return;
-    const ids = this.plugins.enabledPluginIds();
-    if (ids === undefined) return;
+    const summaries = await this.plugins.listPlugins();
+    const ids = summaries
+      .filter((plugin) => plugin.enabled && plugin.state === 'ok')
+      .map((plugin) => plugin.id);
     for (const id of ids) {
       try {
         await this.loadPlugin(id);

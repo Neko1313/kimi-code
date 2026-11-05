@@ -12,6 +12,7 @@ interface StubPluginServiceOptions {
   readonly reloadEmitter?: Emitter<PluginReloadEvent>;
   readonly mutateEmitter?: Emitter<PluginMutationSummary>;
   readonly enabledPluginIds?: readonly string[] | undefined;
+  readonly summaries?: readonly { id: string; enabled: boolean; state: 'ok' | 'error' }[];
 }
 
 export function stubPluginService(options: StubPluginServiceOptions): IPluginService {
@@ -20,7 +21,6 @@ export function stubPluginService(options: StubPluginServiceOptions): IPluginSer
     onDidReload: options.reloadEmitter?.event ?? (Event.None as IPluginService['onDidReload']),
     onDidMutate: options.mutateEmitter?.event ?? (Event.None as IPluginService['onDidMutate']),
     withMcpServersSuspended: async (_id, task) => task(),
-    listPlugins: async () => [],
     installPlugin: async () => ({ id: '' }) as never,
     setPluginEnabled: async () => {},
     setPluginMcpServerEnabled: async () => {},
@@ -42,5 +42,15 @@ export function stubPluginService(options: StubPluginServiceOptions): IPluginSer
     enabledHooks: async () => [],
     hasLoadedSnapshot: () => true,
     enabledPluginIds: () => options.enabledPluginIds,
+    listPlugins: async () =>
+      (options.summaries ?? []).map(
+        (summary) =>
+          ({
+            id: summary.id,
+            displayName: summary.id,
+            enabled: summary.enabled,
+            state: summary.state,
+          }) as never,
+      ),
   };
 }

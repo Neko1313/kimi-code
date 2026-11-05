@@ -47,8 +47,9 @@ import {
 } from '#/agent/toolApproval/toolApprovalService';
 import { IAgentToolExecutorService } from '#/agent/toolExecutor/toolExecutor';
 import { IExternalHooksRunnerService } from '#/features/externalHooks/app/externalHooksRunner';
+import { IPluginRuntimeHost } from '#/app/plugin/runtime';
 import { ExternalHooksRunnerService } from '#/features/externalHooks/app/externalHooksRunnerService';
-import { makeHookRunner } from './runner-stub';
+import { makeHookRunner, stubRuntimeHost } from './runner-stub';
 import type { AgentTaskInfo } from '#/agent/task/task';
 import type { FullCompactionTask } from '#/agent/fullCompaction/fullCompaction';
 import type { CompactionResult } from '#/agent/fullCompaction/types';
@@ -696,6 +697,7 @@ describe('IExternalHooksRunnerService integration', () => {
       });
       activateAgentEventBus(ix);
       ix.stub(ITelemetryService, { track2: () => {} });
+      ix.stub(IPluginRuntimeHost, stubRuntimeHost());
       ix.set(IExternalHooksRunnerService, new SyncDescriptor(ExternalHooksRunnerService));
       ix.set(IAgentExternalHooksService, new SyncDescriptor(AgentExternalHooksService));
       ix.get(IAgentExternalHooksService);
@@ -962,6 +964,7 @@ describe('IExternalHooksRunnerService integration', () => {
         },
       });
       ix.stub(ITelemetryService, { track2: () => {} });
+      ix.stub(IPluginRuntimeHost, stubRuntimeHost());
       ix.set(IExternalHooksRunnerService, new SyncDescriptor(ExternalHooksRunnerService));
       ix.set(ISessionExternalHooksService, new SyncDescriptor(SessionExternalHooksService));
       ix.get(ISessionExternalHooksService);
@@ -1160,6 +1163,7 @@ describe('IExternalHooksRunnerService integration', () => {
         },
       });
       ix.stub(ITelemetryService, { track2: () => {} });
+      ix.stub(IPluginRuntimeHost, stubRuntimeHost());
       ix.set(IExternalHooksRunnerService, new SyncDescriptor(ExternalHooksRunnerService));
       ix.set(ISessionExternalHooksService, new SyncDescriptor(SessionExternalHooksService));
       ix.get(ISessionExternalHooksService);

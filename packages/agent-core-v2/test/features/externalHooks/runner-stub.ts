@@ -6,10 +6,24 @@ import type { HookDef } from '#/features/externalHooks/internal/types';
 import { IBootstrapService } from '#/app/bootstrap/bootstrap';
 import { IConfigService } from '#/app/config/config';
 import { IPluginService } from '#/app/plugin/plugin';
+import { IPluginRuntimeHost } from '#/app/plugin/runtime';
 import { ITelemetryService, noopTelemetryService } from '#/app/telemetry/telemetry';
 import { HostProcessService } from '#/os/backends/node-local/hostProcessService';
 
 import { stubLog } from '../../_base/log/stubs';
+
+export function stubRuntimeHost(
+  overrides: Partial<IPluginRuntimeHost> = {},
+): IPluginRuntimeHost {
+  return {
+    _serviceBrand: undefined,
+    ready: Promise.resolve(),
+    dispatch: async () => [],
+    hasHandlers: () => false,
+    summary: () => ({}),
+    ...overrides,
+  };
+}
 
 export function makeHookRunner(
   hooks: readonly HookDef[],
@@ -17,6 +31,7 @@ export function makeHookRunner(
     cwd?: string;
     log?: ILogService;
     telemetry?: ITelemetryService;
+    runtime?: IPluginRuntimeHost;
     onTriggered?: (event: string, target: string, count: number) => void;
     onResolved?: (
       event: string,
@@ -45,6 +60,7 @@ export function makeHookRunner(
     } as unknown as IBootstrapService,
     new HostProcessService(),
     options.log ?? stubLog(),
+    options.runtime ?? stubRuntimeHost(),
     options.telemetry ?? noopTelemetryService,
     { onTriggered: options.onTriggered, onResolved: options.onResolved },
   );

@@ -13,6 +13,7 @@ import {
   type PluginManifest,
   type PluginManifestKind,
 } from './types';
+import { RUNTIME_CAPABILITIES, type RuntimeCapability } from './runtime';
 
 const KIMI_PLUGIN_ROOT_PATH = 'kimi.plugin.json';
 const KIMI_PLUGIN_DIR_PATH = '.kimi-plugin/plugin.json';
@@ -142,6 +143,7 @@ export async function parseManifest(pluginRoot: string): Promise<ParsedManifestR
     interface: readInterface(raw['interface']),
     skillInstructions,
     systemPrompt,
+    runtime: readRuntime(raw['runtime'], diagnostics),
   };
 
   const interfaceLocales = await readInterfaceLocales(pluginRoot, manifest, diagnostics);
@@ -159,6 +161,44 @@ function recordUnsupportedRuntimeFields(
       message: `"${field}" is present but not supported by Kimi plugins`,
     });
   }
+}
+
+function readRuntime(
+  raw: unknown,
+  diagnostics: PluginDiagnostic[],
+): PluginManifest['runtime'] {
+  if (raw === undefined) return undefined;
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    diagnostics.push({ severity: 'error', message: '"runtime" must be an object' });
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  const modules = stringArrayField(record, 'modules') ?? [];
+  const capabilitiesRaw = stringArrayField(record, 'capabilities') ?? [];
+  const capabilities = capabilitiesRaw.filter((capability): capability is RuntimeCapability =>
+    (RUNTIME_CAPABILITIES as readonly string[]).includes(capability),
+  );
+  for (const capability of capabilitiesRaw) {
+    if (!(RUNTIME_CAPABILITIES as readonly string[]).includes(capability)) {
+      diagnostics.push({
+        severity: 'warn',
+        message: `unknown runtime capability "${capability}" (known: ${RUNTIME_CAPABILITIES.join(', ')})`,
+      });
+    }
+  }
+  for (const modulePath of modules) {
+    if (!modulePath.startsWith('./')) {
+      diagnostics.push({
+        severity: 'error',
+        message: `runtime module path must start with ./: ${modulePath}`,
+      });
+    }
+  }
+  if (modules.length === 0) {
+    diagnostics.push({ severity: 'error', message: '"runtime.modules" must not be empty' });
+    return undefined;
+  }
+  return { modules, capabilities };
 }
 
 async function resolveDirListField(

@@ -4,6 +4,7 @@ import { ILogService } from '#/_base/log/log';
 import { IBootstrapService } from '#/app/bootstrap/bootstrap';
 import { IConfigService } from '#/app/config/config';
 import { IPluginService } from '#/app/plugin/plugin';
+import { IPluginRuntimeHost } from '#/app/plugin/runtime';
 import { ITelemetryService, noopTelemetryService } from '#/app/telemetry/telemetry';
 import { IHostProcessService } from '#/os/interface/hostProcess';
 
@@ -35,6 +36,7 @@ export class ExternalHooksRunnerService extends Disposable implements IExternalH
     @IBootstrapService private readonly bootstrap: IBootstrapService,
     @IHostProcessService private readonly hostProcess: IHostProcessService,
     @ILogService private readonly log: ILogService,
+    @IPluginRuntimeHost private readonly runtime: IPluginRuntimeHost,
     @ITelemetryService private readonly telemetry: ITelemetryService = noopTelemetryService,
     private readonly callbacks: HookRunCallbacks = {},
   ) {
@@ -82,7 +84,9 @@ export class ExternalHooksRunnerService extends Disposable implements IExternalH
   }
 
   hasHooksFor(event: string): boolean {
-    return (this.byEvent.get(event)?.length ?? 0) > 0;
+    return (
+      (this.byEvent.get(event)?.length ?? 0) > 0 || this.runtime.hasHandlers(event)
+    );
   }
 
   private reportFailure(
@@ -128,17 +132,25 @@ export class ExternalHooksRunnerService extends Disposable implements IExternalH
         },
       },
     );
-    if (results.length > 0) {
+    const runtimeResults = await this.runtime.dispatch(event, {
+      matcherValue:
+        typeof args.matcherValue === 'string' ? args.matcherValue : undefined,
+      sessionId: args.sessionId,
+      cwd: args.cwd ?? this.bootstrap.cwd,
+      data: args.inputData,
+    });
+    const all = [...results, ...runtimeResults];
+    if (all.length > 0) {
       this.telemetry.track2('external_hook_resolved', {
         event,
-        action: blockDecision(event, results) === undefined ? 'allow' : 'block',
-        matched_count: results.length,
-        failed_count: results.filter(
+        action: blockDecision(event, all) === undefined ? 'allow' : 'block',
+        matched_count: all.length,
+        failed_count: all.filter(
           (r) => r.timedOut === true || r.errored === true || (!!r.exitCode && r.exitCode !== 2),
         ).length,
       });
     }
-    return results;
+    return all;
   }
 
   private async loadSafe(): Promise<void> {

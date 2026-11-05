@@ -2,6 +2,8 @@ import type { IWaitUntil } from '#/_base/event';
 import type { HookDefConfig } from '#/features/externalHooks/configSection';
 import type { McpServerConfig } from '#/mcpCore/config-schema';
 
+import type { PluginRuntimeConfig } from './runtime';
+
 export type PluginDiagnosticSeverity = 'error' | 'warn' | 'info';
 
 export interface PluginDiagnostic {
@@ -59,6 +61,7 @@ export interface PluginManifest {
   readonly interface?: PluginInterface;
   readonly skillInstructions?: string;
   readonly systemPrompt?: string;
+  readonly runtime?: PluginRuntimeConfig;
 }
 
 export interface PluginMcpServerState {

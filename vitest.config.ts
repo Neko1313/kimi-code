@@ -6,6 +6,7 @@ export default defineConfig({
     projects: [
       'packages/*',
       '!packages/minidb',
+      'packages/core-plugins/kimi-workflow',
       'apps/kimi-code',
       'apps/vis/server',
       'apps/vis/web',

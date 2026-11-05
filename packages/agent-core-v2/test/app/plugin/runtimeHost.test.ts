@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -189,4 +189,80 @@ describe('PluginRuntimeHost', () => {
     const results = await host.dispatch('PreToolUse', { cwd: root });
     expect(results).toEqual([]);
   });
+
+  it('runs the kimi-workflow plugin end to end', async () => {
+    const pluginRoot = path.resolve(__dirname, '../../../../core-plugins/kimi-workflow');
+    const plugins = stubPluginService({ enabledPluginIds: ['kimi-workflow'], sessionStarts: [] });
+    plugins.getPluginInfo = async () =>
+      ({
+        id: 'kimi-workflow',
+        displayName: 'kimi-workflow',
+        enabled: true,
+        state: 'ok',
+        skillCount: 0,
+        mcpServerCount: 0,
+        enabledMcpServerCount: 0,
+        hookCount: 0,
+        commandCount: 0,
+        hasErrors: false,
+        source: 'local-path',
+        origin: 'custom',
+        installedAt: new Date(0).toISOString(),
+        root: pluginRoot,
+        diagnostics: [],
+        skills: [],
+        mcpServers: [],
+        manifest: {
+          name: 'kimi-workflow',
+          runtime: {
+            modules: ['./runtime/index.ts'],
+            capabilities: ['events', 'log', 'store', 'process', 'clock'],
+          },
+        },
+      }) as PluginInfo;
+    const warnings: string[] = [];
+    const baseLog = stubLog();
+    const host = new PluginRuntimeHost(
+      plugins,
+      stubFlag((id: string) => id === PLUGIN_RUNTIME_FLAG_ID),
+      {
+        ...baseLog,
+        warn: (msg: string, extra?: unknown) => {
+          warnings.push(`${msg} ${JSON.stringify(extra)}`);
+          baseLog.warn(msg, extra);
+        },
+      },
+    );
+    await host.ready;
+    if (!host.hasHandlers('UserPromptSubmit')) {
+      throw new Error(`workflow plugin failed to load: ${warnings.join(' | ')}`);
+    }
+
+    const plan = JSON.stringify({
+      name: 'e2e',
+      stages: [
+        {
+          id: 'check',
+          type: 'fanout',
+          items: ['a.txt', 'b.txt'],
+          worker: { command: 'echo', argsTemplate: ['checking', '{{item}}'] },
+        },
+      ],
+    });
+    const results = await host.dispatch('UserPromptSubmit', {
+      cwd: root,
+      matcherValue: `/workflow run ${plan}`,
+      data: { prompt: `/workflow run ${plan}` },
+    });
+
+    expect(results).toEqual([
+      { action: 'block', reason: 'workflow executed (see logs); prompt consumed' },
+    ]);
+    const stored = JSON.parse(
+      await readFile(path.join(storeRoot, 'plugin-runtime', 'kimi-workflow.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    const runs = stored['workflow.e2e.runs'] as Array<{ item: string; exitCode: number }>;
+    expect(runs).toHaveLength(2);
+    expect(runs.every((r) => r.exitCode === 0)).toBe(true);
+  }, 20_000);
 });

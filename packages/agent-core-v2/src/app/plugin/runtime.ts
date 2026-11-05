@@ -2,7 +2,7 @@ import { createDecorator, type ServiceIdentifier } from '#/_base/di/instantiatio
 
 import type { HookResult } from '#/features/externalHooks/internal/types';
 
-export const RUNTIME_CAPABILITIES = ['events', 'log', 'store', 'clock'] as const;
+export const RUNTIME_CAPABILITIES = ['events', 'log', 'store', 'clock', 'process'] as const;
 
 export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
 
@@ -36,6 +36,12 @@ export interface RuntimePluginApi {
   readonly clock: {
     every(ms: number, fn: () => void): { cancel(): void };
     after(ms: number, fn: () => void): { cancel(): void };
+  };
+  readonly process: {
+    run(
+      args: readonly string[],
+      options?: { timeoutMs?: number; cwd?: string; input?: string },
+    ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   };
 }
 

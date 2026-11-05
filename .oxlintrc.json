@@ -115,6 +115,17 @@
       }
     },
     {
+      // Plugin runtime modules are loaded by the plugin runtime host via
+      // bare dynamic import() under Node's native type stripping, which
+      // requires explicit `.ts` import specifiers.
+      "files": [
+        "packages/core-plugins/**/*.ts"
+      ],
+      "rules": {
+        "import/extensions": "off"
+      }
+    },
+    {
       "files": [
         "**/*.test.ts",
         "**/*.test.tsx",

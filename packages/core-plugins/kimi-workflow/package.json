@@ -1,0 +1,11 @@
+{
+  "name": "@kimi-code-plugins/workflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plan-as-data workflow orchestrator plugin for the Kimi Code in-process plugin runtime (PoC)",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  }
+}

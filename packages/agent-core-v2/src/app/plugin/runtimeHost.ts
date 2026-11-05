@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -42,6 +43,7 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
   private byEvent = new Map<string, LoadedHandler[]>();
   private modules: LoadedModule[] = [];
   private storeDirs = new Map<string, string>();
+  private storeQueues = new Map<string, Promise<void>>();
 
   constructor(
     @IPluginService private readonly plugins: IPluginService,
@@ -157,7 +159,53 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
         every: (ms, fn) => this.addTimer(pluginId, ms, fn, true),
         after: (ms, fn) => this.addTimer(pluginId, ms, fn, false),
       },
+      process: {
+        run: (args, options) => this.runProcess(args, options),
+      },
     };
+  }
+
+  private runProcess(
+    args: readonly string[],
+    options: { timeoutMs?: number; cwd?: string; input?: string } = {},
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    return new Promise((resolve, reject) => {
+      const [command, ...rest] = args;
+      if (command === undefined || command.length === 0) {
+        reject(new Error('process.run requires a command'));
+        return;
+      }
+      const child = spawn(command, rest, {
+        cwd: options.cwd,
+        shell: false,
+        env: process.env,
+      });
+      let stdout = '';
+      let stderr = '';
+      const timer = setTimeout(() => {
+        child.kill('SIGTERM');
+        reject(new Error(`process.run timed out: ${command}`));
+      }, options.timeoutMs ?? 30_000);
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdout += chunk.toString('utf8');
+      });
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString('utf8');
+      });
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        resolve({ exitCode: code ?? -1, stdout, stderr });
+      });
+      if (options.input !== undefined) {
+        child.stdin.on('error', () => {});
+        child.stdin.write(options.input);
+      }
+      child.stdin.end();
+    });
   }
 
   private addTimer(pluginId: string, ms: number, fn: () => void, repeat: boolean) {
@@ -195,15 +243,26 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
   }
 
   private async storeSet(pluginId: string, key: string, value: unknown): Promise<void> {
-    const data = await this.storeRead(pluginId);
-    data[key] = value;
-    await this.storeWrite(pluginId, data);
+    await this.storeEnqueue(pluginId, async () => {
+      const data = await this.storeRead(pluginId);
+      data[key] = value;
+      await this.storeWrite(pluginId, data);
+    });
   }
 
   private async storeDelete(pluginId: string, key: string): Promise<void> {
-    const data = await this.storeRead(pluginId);
-    delete data[key];
-    await this.storeWrite(pluginId, data);
+    await this.storeEnqueue(pluginId, async () => {
+      const data = await this.storeRead(pluginId);
+      delete data[key];
+      await this.storeWrite(pluginId, data);
+    });
+  }
+
+  private storeEnqueue(pluginId: string, task: () => Promise<void>): Promise<void> {
+    const previous = this.storeQueues.get(pluginId) ?? Promise.resolve();
+    const next = previous.then(task, task);
+    this.storeQueues.set(pluginId, next);
+    return next;
   }
 
   private async storeRead(pluginId: string): Promise<Record<string, unknown>> {

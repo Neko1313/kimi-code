@@ -1,0 +1,9 @@
+{
+  "name": "kimi-workflow",
+  "version": "0.1.0",
+  "description": "Runs a plan-as-data workflow: fans work out over headless worker processes, tracks coverage and results, loops until done.",
+  "runtime": {
+    "modules": ["./runtime/index.ts"],
+    "capabilities": ["events", "log", "store", "process", "clock"]
+  }
+}

@@ -1,6 +1,7 @@
 packages:
   # Includes the standalone session-import conversion package.
   - packages/*
+  - packages/core-plugins/*
   - apps/*
   - apps/vis/server
   - apps/vis/web

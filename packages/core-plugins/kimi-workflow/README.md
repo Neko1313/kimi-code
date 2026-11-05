@@ -42,13 +42,13 @@ Stage types:
 
 ## Running
 
-With the runtime flag enabled and the plugin installed, submit:
+With the runtime flag enabled and the plugin installed, submit (note: no leading slash — the TUI routes slash input to its own command list, so the trigger is plain prompt text):
 
 ```
-/workflow run {"name":"audit","stages":[...]}
+workflow run {"name":"audit","stages":[...]}
 ```
 
-Progress and per-stage summaries go to the plugin logs; results persist under `workflow.<name>.runs` in the runtime store. `/workflow status <name>` prints recorded runs.
+The result summary is returned as the hook block reason, so it renders directly in the transcript; detailed progress also goes to the plugin logs. Results persist under `workflow.<name>.runs` in the runtime store. `workflow status <name>` prints recorded runs the same way.
 
 ## Status
 

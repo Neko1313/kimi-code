@@ -259,13 +259,14 @@ describe('PluginRuntimeHost', () => {
     });
     const results = await host.dispatch('UserPromptSubmit', {
       cwd: root,
-      matcherValue: `/workflow run ${plan}`,
-      data: { prompt: `/workflow run ${plan}` },
+      matcherValue: `workflow run ${plan}`,
+      data: { prompt: `workflow run ${plan}` },
     });
 
-    expect(results).toEqual([
-      { action: 'block', reason: 'workflow executed (see logs); prompt consumed' },
-    ]);
+    expect(results.length).toBe(1);
+    expect(results[0]?.action).toBe('block');
+    expect(results[0]?.reason).toContain('workflow "e2e": completed');
+    expect(results[0]?.reason).toContain('stage check: 2/2 ok');
     const stored = JSON.parse(
       await readFile(path.join(storeRoot, 'plugin-runtime', 'kimi-workflow.json'), 'utf8'),
     ) as Record<string, unknown>;

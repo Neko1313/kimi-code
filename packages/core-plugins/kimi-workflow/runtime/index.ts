@@ -1,4 +1,4 @@
-import { runPlan, type EngineDeps, type RunRecord } from './engine.ts';
+import { runPlan, type EngineDeps, type EngineResult, type RunRecord } from './engine.ts';
 import { parsePlan } from './plan.ts';
 
 type RuntimeApi = {
@@ -21,7 +21,8 @@ type EventPayload = {
   readonly data: Record<string, unknown>;
 };
 
-const PLAN_PREFIX = '/workflow run ';
+const RUN_PREFIX = 'workflow run ';
+const STATUS_PREFIX = 'workflow status ';
 
 function engineDeps(api: RuntimeApi): EngineDeps {
   const runsKey = (planName: string): string => `workflow.${planName}.runs`;
@@ -49,17 +50,17 @@ function engineDeps(api: RuntimeApi): EngineDeps {
 }
 
 export function register(on: (event: string, matcher: string, handler: (api: RuntimeApi, event: EventPayload, next: (e?: EventPayload) => unknown) => unknown) => void): void {
-  on('UserPromptSubmit', '^/workflow', async (api, event, next) => {
+  on('UserPromptSubmit', '^workflow (run|status) ', async (api, event, next) => {
     const prompt = textOf(event.data['prompt']);
     if (prompt === undefined) return next();
 
-    if (prompt.startsWith(PLAN_PREFIX)) {
-      await handleRun(api, prompt.slice(PLAN_PREFIX.length));
-      return { block: 'workflow executed (see logs); prompt consumed' };
+    if (prompt.startsWith(RUN_PREFIX)) {
+      const summary = await handleRun(api, prompt.slice(RUN_PREFIX.length));
+      return { block: summary };
     }
-    if (prompt.startsWith('/workflow status ')) {
-      await handleStatus(api, prompt.slice('/workflow status '.length));
-      return { block: 'workflow status printed (see logs)' };
+    if (prompt.startsWith(STATUS_PREFIX)) {
+      const summary = await handleStatus(api, prompt.slice(STATUS_PREFIX.length));
+      return { block: summary };
     }
     return next();
   });
@@ -78,46 +79,45 @@ function textOf(value: unknown): string | undefined {
   return text.length > 0 ? text : undefined;
 }
 
-async function handleRun(api: RuntimeApi, planJson: string): Promise<void> {
+async function handleRun(api: RuntimeApi, planJson: string): Promise<string> {
   let raw: unknown;
   try {
     raw = JSON.parse(planJson);
   } catch {
-    api.log.warn('workflow: plan is not valid JSON');
-    return;
+    return 'workflow: plan is not valid JSON';
   }
   const { plan, issues } = parsePlan(raw);
   if (plan === undefined) {
-    for (const issue of issues) {
-      api.log.warn(`workflow plan issue at ${issue.path}: ${issue.message}`);
-    }
-    return;
+    const lines = issues.map((issue) => `plan issue at ${issue.path}: ${issue.message}`);
+    return ['workflow: plan invalid', ...lines].join('\n');
   }
   api.log.info(`workflow "${plan.name}": starting (${plan.stages.length} stage(s))`);
   const started = Date.now();
   const result = await runPlan(plan, engineDeps(api));
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  for (const stage of result.stages) {
-    const okCount = stage.records.filter((r) => r.exitCode === 0).length;
-    api.log.info(
-      `workflow "${plan.name}" stage ${stage.stageId}: ${okCount}/${stage.records.length} ok, failed: [${stage.failedItems.join(', ')}]`,
-    );
-  }
-  api.log.info(
-    `workflow "${plan.name}": ${result.ok ? 'completed' : 'finished with failures'} in ${seconds}s`,
-  );
+  api.log.info(`workflow "${plan.name}": ${result.ok ? 'completed' : 'finished with failures'} in ${seconds}s`);
+  return renderResult(result);
 }
 
-async function handleStatus(api: RuntimeApi, planName: string): Promise<void> {
+function renderResult(result: EngineResult): string {
+  const lines: string[] = [`workflow "${result.planName}": ${result.ok ? 'completed' : 'FAILED'}`];
+  for (const stage of result.stages) {
+    const okCount = stage.records.filter((r) => r.exitCode === 0).length;
+    const failed = stage.failedItems.length > 0 ? `, failed: ${stage.failedItems.join(', ')}` : '';
+    lines.push(`  stage ${stage.stageId}: ${okCount}/${stage.records.length} ok${failed}`);
+  }
+  return lines.join('\n');
+}
+
+async function handleStatus(api: RuntimeApi, planName: string): Promise<string> {
   const name = planName.trim();
   const runs = (await api.store.get<RunRecord[]>(`workflow.${name}.runs`)) ?? [];
   if (runs.length === 0) {
-    api.log.info(`workflow "${name}": no recorded runs`);
-    return;
+    return `workflow "${name}": no recorded runs`;
   }
-  const ok = runs.filter((r) => r.exitCode === 0).length;
-  api.log.info(`workflow "${name}": ${ok}/${runs.length} item-runs ok`);
+  const lines = [`workflow "${name}": ${runs.filter((r) => r.exitCode === 0).length}/${runs.length} item-runs ok`];
   for (const run of runs) {
-    api.log.info(`  ${run.stageId} #${run.round} ${run.item}: exit ${run.exitCode}`);
+    lines.push(`  ${run.stageId} #${run.round} ${run.item}: exit ${run.exitCode}`);
   }
+  return lines.join('\n');
 }

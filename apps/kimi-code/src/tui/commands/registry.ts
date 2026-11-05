@@ -264,9 +264,9 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
-    name: 'workflow',
+    name: 'panes',
     aliases: [],
-    description: 'Browse workflow runs (kimi-workflow plugin)',
+    description: 'Browse plugin UI panes',
     priority: 60,
     availability: 'always',
   },

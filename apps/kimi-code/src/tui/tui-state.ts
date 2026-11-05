@@ -24,7 +24,7 @@ import { DEFAULT_MARKDOWN_CONFIG, DEFAULT_TUI_CONFIG } from './config';
 import { CHROME_GUTTER, DOCK_QUEUE_ROWS, DOCK_UPDATES_ROWS } from './constant/rendering';
 import { CLICK_GUARD_MS } from './constant/terminal';
 import type { TasksBrowserState } from './controllers/tasks-browser';
-import type { WorkflowBrowserState } from './controllers/workflow-browser';
+import type { PluginPaneViewerState } from './controllers/plugin-panes';
 import { currentTheme, type Theme } from './theme';
 import {
   INITIAL_LIVE_PANE,
@@ -100,7 +100,7 @@ export interface TUIState {
    */
   editorReplacementMounted: boolean;
   tasksBrowser: TasksBrowserState | undefined;
-  workflowBrowser: WorkflowBrowserState | undefined;
+  pluginPaneViewer: PluginPaneViewerState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
   /**
@@ -238,7 +238,7 @@ export function createTUIState(options: KimiTUIOptions): TUIState {
     activeDialog: null,
     editorReplacementMounted: false,
     tasksBrowser: undefined,
-    workflowBrowser: undefined,
+    pluginPaneViewer: undefined,
     externalEditorRunning: false,
     queuedMessages: [],
     queuedMessageDispatchPending: false,

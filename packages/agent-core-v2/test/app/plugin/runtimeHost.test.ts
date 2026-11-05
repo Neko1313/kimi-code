@@ -342,4 +342,52 @@ describe('PluginRuntimeHost', () => {
     const gone = await host.dispatch('Stop', { cwd: root });
     expect(gone).toEqual([]);
   }, 20_000);
+
+  it('serves plugin panes through the UI host channel', async () => {
+    const host = await makeHost(`
+      let count = 0;
+      export function register(on) {
+        on('SessionStart', async ($, e, next) => {
+          await $.ui.open({ id: 'demo-pane', title: 'Demo' });
+          return next(e);
+        });
+        on('ui.render', async ($, e, next) => {
+          if (e.data.requestId !== 'demo-pane') return next();
+          return { type: 'box', direction: 'column', children: [
+            { type: 'text', text: 'count: ' + count, color: 'primary' },
+          ] };
+        });
+        on('ui.key', async ($, e) => {
+          if (e.data.key === 'enter') count += 1;
+        });
+      }
+    `);
+
+    await host.dispatch('SessionStart', { cwd: root });
+
+    const uiHost = (globalThis as Record<symbol, unknown>)[
+      Symbol.for('kimi-code.pluginUiHost')
+    ] as {
+      listPanes(): { id: string; title: string }[];
+      renderPane(id: string, width: number): Promise<unknown>;
+      dispatchKey(id: string, key: string): Promise<void>;
+    };
+
+    expect(uiHost.listPanes()).toEqual([{ id: 'demo-pane', title: 'Demo' }]);
+
+    const first = (await uiHost.renderPane('demo-pane', 80)) as {
+      type: string;
+      children: { text: string }[];
+    };
+    expect(first.children[0]?.text).toBe('count: 0');
+
+    await uiHost.dispatchKey('demo-pane', 'enter');
+    const second = (await uiHost.renderPane('demo-pane', 80)) as {
+      children: { text: string }[];
+    };
+    expect(second.children[0]?.text).toBe('count: 1');
+
+    const missing = await uiHost.renderPane('no-such-pane', 80);
+    expect(missing).toBeUndefined();
+  });
 });

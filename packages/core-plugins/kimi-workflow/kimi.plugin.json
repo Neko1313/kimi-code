@@ -4,6 +4,6 @@
   "description": "Runs a plan-as-data workflow: fans work out over headless worker processes, tracks coverage and results, loops until done.",
   "runtime": {
     "modules": ["./runtime/index.ts"],
-    "capabilities": ["events", "log", "store", "process", "clock"]
+    "capabilities": ["events", "log", "store", "process", "clock", "ui"]
   }
 }

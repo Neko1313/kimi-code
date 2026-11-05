@@ -12,8 +12,11 @@ import type { HookResult } from '#/features/externalHooks/internal/types';
 
 import {
   IPluginRuntimeHost,
+  registerPluginUiHost,
+  type PluginPaneInfo,
   type PluginRuntimeConfig,
   type RuntimeDispatchArgs,
+  type RuntimeElement,
   type RuntimeEventPayload,
   type RuntimeHandler,
   type RuntimeModule,
@@ -44,6 +47,8 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
   private modules: LoadedModule[] = [];
   private storeDirs = new Map<string, string>();
   private storeQueues = new Map<string, Promise<void>>();
+  private panes = new Map<string, { pluginId: string; title: string }>();
+  private uiListeners = new Set<() => void>();
 
   constructor(
     @IPluginService private readonly plugins: IPluginService,
@@ -53,6 +58,97 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
     super();
     this.ready = this.loadSafe();
     this._register(this.plugins.onDidReload(() => void this.reload()));
+    registerPluginUiHost({
+      listPanes: () =>
+        [...this.panes.entries()].map(([id, pane]) => ({ id, title: pane.title })),
+      renderPane: (id, width) => this.renderPane(id, width),
+      dispatchKey: (id, key) => this.dispatchKey(id, key),
+      onDidChange: (listener) => {
+        this.uiListeners.add(listener);
+        return () => this.uiListeners.delete(listener);
+      },
+    });
+  }
+
+  listPanes(): readonly PluginPaneInfo[] {
+    return [...this.panes.entries()].map(([id, pane]) => ({ id, title: pane.title }));
+  }
+
+  async renderPane(id: string, width: number): Promise<RuntimeElement | undefined> {
+    await this.ready;
+    const pane = this.panes.get(id);
+    if (pane === undefined) return undefined;
+    const handlers = (this.byEvent.get('ui.render') ?? []).filter(
+      (handler) => handler.pluginId === pane.pluginId,
+    );
+    const payload: RuntimeEventPayload = {
+      event: 'ui.render',
+      cwd: process.cwd(),
+      data: { component: 'Pane', requestId: id, width },
+    };
+    for (const handler of handlers) {
+      let nextCalled = false;
+      const next: RuntimeNext = async (rewritten) => {
+        nextCalled = true;
+        return rewritten ?? payload;
+      };
+      try {
+        const outcome = await this.withTimeout(
+          Promise.resolve(handler.handler(this.apiFor(handler.pluginId), payload, next)),
+        );
+        if (!nextCalled && isRuntimeElement(outcome)) return outcome;
+      } catch (error) {
+        this.log.warn(`ui.render handler failed for pane ${id}`, {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return undefined;
+  }
+
+  async dispatchKey(id: string, key: string): Promise<void> {
+    await this.ready;
+    const pane = this.panes.get(id);
+    if (pane === undefined) return;
+    const handlers = (this.byEvent.get('ui.key') ?? []).filter(
+      (handler) => handler.pluginId === pane.pluginId,
+    );
+    const payload: RuntimeEventPayload = {
+      event: 'ui.key',
+      cwd: process.cwd(),
+      data: { paneId: id, key },
+    };
+    for (const handler of handlers) {
+      try {
+        await this.withTimeout(
+          Promise.resolve(handler.handler(this.apiFor(handler.pluginId), payload, async () => payload)),
+        );
+      } catch (error) {
+        this.log.warn(`ui.key handler failed for pane ${id}`, {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  private notifyUiChanged(): void {
+    for (const listener of this.uiListeners) {
+      try {
+        listener();
+      } catch {}
+    }
+  }
+
+  private openPane(pluginId: string, id: string, title: string): void {
+    this.panes.set(id, { pluginId, title });
+    this.log.info(`[${pluginId}] pane opened: ${id}`);
+    this.notifyUiChanged();
+  }
+
+  private closePane(id: string): void {
+    if (this.panes.delete(id)) {
+      this.notifyUiChanged();
+    }
   }
 
   hasHandlers(event: string): boolean {
@@ -161,6 +257,17 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
       },
       process: {
         run: (args, options) => this.runProcess(args, options),
+      },
+      ui: {
+        open: async (options) => {
+          this.openPane(pluginId, options.id, options.title);
+        },
+        close: async (options) => {
+          this.closePane(options.id);
+        },
+        invalidate: () => {
+          this.notifyUiChanged();
+        },
       },
     };
   }
@@ -304,6 +411,8 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
     }
     this.modules = [];
     this.byEvent = new Map();
+    this.panes = new Map();
+    this.notifyUiChanged();
     try {
       await this.load();
     } catch {}
@@ -371,4 +480,10 @@ export class PluginRuntimeHost extends Disposable implements IPluginRuntimeHost 
       }
     }
   }
+}
+
+function isRuntimeElement(value: unknown): value is RuntimeElement {
+  if (value === null || typeof value !== 'object') return false;
+  const type = (value as Record<string, unknown>)['type'];
+  return type === 'box' || type === 'text' || type === 'button';
 }

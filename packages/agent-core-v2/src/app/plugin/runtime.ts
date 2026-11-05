@@ -2,7 +2,7 @@ import { createDecorator, type ServiceIdentifier } from '#/_base/di/instantiatio
 
 import type { HookResult } from '#/features/externalHooks/internal/types';
 
-export const RUNTIME_CAPABILITIES = ['events', 'log', 'store', 'clock', 'process'] as const;
+export const RUNTIME_CAPABILITIES = ['events', 'log', 'store', 'clock', 'process', 'ui'] as const;
 
 export type RuntimeCapability = (typeof RUNTIME_CAPABILITIES)[number];
 
@@ -43,6 +43,11 @@ export interface RuntimePluginApi {
       options?: { timeoutMs?: number; cwd?: string; input?: string },
     ): Promise<{ exitCode: number; stdout: string; stderr: string }>;
   };
+  readonly ui: {
+    open(options: { id: string; title: string }): Promise<void>;
+    close(options: { id: string }): Promise<void>;
+    invalidate(): void;
+  };
 }
 
 export type RuntimeHandler = (
@@ -53,6 +58,40 @@ export type RuntimeHandler = (
 
 export interface RuntimeBlock {
   readonly block: string;
+}
+
+export type RuntimeUiColor = 'primary' | 'success' | 'error' | 'warning' | 'dim' | 'muted' | 'textStrong';
+
+export type RuntimeElement =
+  | {
+      readonly type: 'box';
+      readonly direction: 'row' | 'column';
+      readonly gap?: number;
+      readonly children: readonly (RuntimeElement | string)[];
+    }
+  | { readonly type: 'text'; readonly text: string; readonly color?: RuntimeUiColor }
+  | { readonly type: 'button'; readonly label: string; readonly hotkey?: string };
+
+export interface PluginPaneInfo {
+  readonly id: string;
+  readonly title: string;
+}
+
+export interface PluginUiHost {
+  listPanes(): readonly PluginPaneInfo[];
+  renderPane(id: string, width: number): Promise<RuntimeElement | undefined>;
+  dispatchKey(id: string, key: string): Promise<void>;
+  onDidChange(listener: () => void): () => void;
+}
+
+const PLUGIN_UI_HOST_KEY = Symbol.for('kimi-code.pluginUiHost');
+
+export function registerPluginUiHost(host: PluginUiHost): void {
+  (globalThis as Record<symbol, unknown>)[PLUGIN_UI_HOST_KEY] = host;
+}
+
+export function getPluginUiHost(): PluginUiHost | undefined {
+  return (globalThis as Record<symbol, unknown>)[PLUGIN_UI_HOST_KEY] as PluginUiHost | undefined;
 }
 
 export type RuntimeModule = {

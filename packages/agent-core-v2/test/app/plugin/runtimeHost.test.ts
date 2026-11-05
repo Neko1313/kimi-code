@@ -274,4 +274,72 @@ describe('PluginRuntimeHost', () => {
     expect(runs).toHaveLength(2);
     expect(runs.every((r) => r.exitCode === 0)).toBe(true);
   }, 20_000);
+
+  it('runs a pending plan from .kimi-workflow/pending.json on Stop', async () => {
+    const pluginRoot = path.resolve(__dirname, '../../../../core-plugins/kimi-workflow');
+    const plugins = stubPluginService({
+      enabledPluginIds: ['kimi-workflow'],
+      sessionStarts: [],
+      summaries: [{ id: 'kimi-workflow', enabled: true, state: 'ok' }],
+    });
+    plugins.getPluginInfo = async () =>
+      ({
+        id: 'kimi-workflow',
+        displayName: 'kimi-workflow',
+        enabled: true,
+        state: 'ok',
+        skillCount: 0,
+        mcpServerCount: 0,
+        enabledMcpServerCount: 0,
+        hookCount: 0,
+        commandCount: 0,
+        hasErrors: false,
+        source: 'local-path',
+        origin: 'custom',
+        installedAt: new Date(0).toISOString(),
+        root: pluginRoot,
+        diagnostics: [],
+        skills: [],
+        mcpServers: [],
+        manifest: {
+          name: 'kimi-workflow',
+          runtime: {
+            modules: ['./runtime/index.ts'],
+            capabilities: ['events', 'log', 'store', 'process', 'clock'],
+          },
+        },
+      }) as PluginInfo;
+    const host = new PluginRuntimeHost(
+      plugins,
+      stubFlag((id: string) => id === PLUGIN_RUNTIME_FLAG_ID),
+      stubLog(),
+    );
+    await host.ready;
+
+    const pendingDir = path.join(root, '.kimi-workflow');
+    await mkdir(pendingDir, { recursive: true });
+    await writeFile(
+      path.join(pendingDir, 'pending.json'),
+      JSON.stringify({
+        name: 'from-agent',
+        stages: [
+          {
+            id: 'scan',
+            type: 'fanout',
+            items: ['one.txt', 'two.txt'],
+            worker: { command: 'echo', argsTemplate: ['scan', '{{item}}'] },
+          },
+        ],
+      }),
+    );
+
+    const results = await host.dispatch('Stop', { cwd: root });
+    expect(results.length).toBe(1);
+    expect(results[0]?.action).toBe('block');
+    expect(results[0]?.reason).toContain('workflow "from-agent": completed');
+    expect(results[0]?.reason).toContain('stage scan: 2/2 ok');
+
+    const gone = await host.dispatch('Stop', { cwd: root });
+    expect(gone).toEqual([]);
+  }, 20_000);
 });

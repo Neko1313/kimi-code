@@ -23,6 +23,7 @@ type EventPayload = {
 
 const RUN_PREFIX = 'workflow run ';
 const STATUS_PREFIX = 'workflow status ';
+const PENDING_REL = '.kimi-workflow/pending.json';
 
 function engineDeps(api: RuntimeApi): EngineDeps {
   const runsKey = (planName: string): string => `workflow.${planName}.runs`;
@@ -63,6 +64,26 @@ export function register(on: (event: string, matcher: string, handler: (api: Run
       return { block: summary };
     }
     return next();
+  });
+
+  on('Stop', async (api, event, next) => {
+    const probe = await api.process.run(['cat', PENDING_REL], { cwd: event.cwd });
+    if (probe.exitCode !== 0) return next();
+    await api.process.run(['rm', '-f', PENDING_REL], { cwd: event.cwd });
+    let raw: unknown;
+    try {
+      raw = JSON.parse(probe.stdout);
+    } catch {
+      return { block: 'workflow: .kimi-workflow/pending.json is not valid JSON; consumed' };
+    }
+    const { plan, issues } = parsePlan(raw);
+    if (plan === undefined) {
+      const lines = issues.map((issue) => `plan issue at ${issue.path}: ${issue.message}`);
+      return { block: ['workflow: pending plan invalid', ...lines].join('\n') };
+    }
+    api.log.info(`workflow "${plan.name}": starting (${plan.stages.length} stage(s)) from pending file`);
+    const result = await runPlan(plan, engineDeps(api));
+    return { block: renderResult(result) };
   });
 }
 

@@ -264,6 +264,13 @@ export const BUILTIN_SLASH_COMMANDS = [
     availability: 'always',
   },
   {
+    name: 'workflow',
+    aliases: [],
+    description: 'Browse workflow runs (kimi-workflow plugin)',
+    priority: 60,
+    availability: 'always',
+  },
+  {
     name: 'mcp',
     aliases: [],
     description: 'Show MCP server status',

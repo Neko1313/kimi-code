@@ -12,6 +12,7 @@ import type { BtwPanelController } from '../controllers/btw-panel';
 import type { ModelMigrationController } from '../controllers/model-migration';
 import type { StreamingUIController } from '../controllers/streaming-ui';
 import type { TasksBrowserController } from '../controllers/tasks-browser';
+import type { WorkflowBrowserController } from '../controllers/workflow-browser';
 import { tryHandleDanceCommand } from '../easter-eggs/dance';
 import type { ResolvedTheme } from '../theme/colors';
 import type { TUIState } from '../tui-state';
@@ -230,6 +231,7 @@ export interface SlashCommandHost {
   readonly streamingUI: StreamingUIController;
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
+  readonly workflowBrowserController: WorkflowBrowserController;
   readonly authFlow: AuthFlowController;
   readonly modelMigration: ModelMigrationController;
 }
@@ -443,6 +445,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'tasks':
       void host.tasksBrowserController.show();
+      return;
+    case 'workflow':
+      void host.workflowBrowserController.show();
       return;
     case 'mcp':
       void showMcpServers(host);

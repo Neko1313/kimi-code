@@ -65,9 +65,17 @@ export function register(on: (event: string, matcher: string, handler: (api: Run
   });
 }
 
+type TextPartLike = { readonly type: string; readonly text?: string };
+
 function textOf(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  return value;
+  if (typeof value === 'string') return value;
+  if (!Array.isArray(value)) return undefined;
+  const text = value
+    .filter((part): part is TextPartLike => part !== null && typeof part === 'object')
+    .filter((part) => part.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text as string)
+    .join(' ');
+  return text.length > 0 ? text : undefined;
 }
 
 async function handleRun(api: RuntimeApi, planJson: string): Promise<void> {

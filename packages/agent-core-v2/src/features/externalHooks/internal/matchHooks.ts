@@ -135,7 +135,7 @@ function matches(pattern: string, value: string): boolean {
   }
 }
 
-function matcherValueText(value: HookMatcherValue | undefined): string {
+export function matcherValueText(value: HookMatcherValue | undefined): string {
   if (value === undefined) return '';
   if (typeof value === 'string') return value;
   return value

@@ -14,7 +14,7 @@ import {
   IExternalHooksRunnerService,
   type ExternalHooksRunnerTriggerArgs,
 } from './externalHooksRunner';
-import { blockDecision, indexHooks, runMatchedHooks } from '../internal/matchHooks';
+import { blockDecision, indexHooks, matcherValueText, runMatchedHooks } from '../internal/matchHooks';
 import type { HookRunCallbacks } from '../internal/matchHooks';
 import type { HookBlockDecision, HookDef, HookResult } from '../internal/types';
 
@@ -133,8 +133,7 @@ export class ExternalHooksRunnerService extends Disposable implements IExternalH
       },
     );
     const runtimeResults = await this.runtime.dispatch(event, {
-      matcherValue:
-        typeof args.matcherValue === 'string' ? args.matcherValue : undefined,
+      matcherValue: matcherValueText(args.matcherValue),
       sessionId: args.sessionId,
       cwd: args.cwd ?? this.bootstrap.cwd,
       data: args.inputData,

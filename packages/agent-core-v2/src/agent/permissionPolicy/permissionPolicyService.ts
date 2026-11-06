@@ -20,6 +20,7 @@ import {
   type PermissionPolicyEvaluation,
 } from './permissionPolicy';
 import type { PermissionPolicy } from "./types";
+import { toDisposable } from '#/_base/di/lifecycle';
 import { LifecycleScope } from '#/app/scopes';
 import { ScopeActivation, registerScopedService } from '#/_base/di/scope';
 
@@ -30,6 +31,12 @@ export class AgentPermissionPolicyService
   declare readonly _serviceBrand: undefined;
 
   private readonly policies: readonly PermissionPolicy[];
+  private readonly reviewers = new Set<(context: ResolvedToolExecutionHookContext, evaluation: PermissionPolicyEvaluation) => Promise<PermissionPolicyEvaluation>>();
+
+  registerReviewer(reviewer: (context: ResolvedToolExecutionHookContext, evaluation: PermissionPolicyEvaluation) => Promise<PermissionPolicyEvaluation>) {
+    this.reviewers.add(reviewer);
+    return toDisposable(() => { this.reviewers.delete(reviewer); });
+  }
 
   constructor(
     @IInstantiationService private readonly instantiation: IInstantiationService,
@@ -60,7 +67,15 @@ export class AgentPermissionPolicyService
   ): Promise<PermissionPolicyEvaluation | undefined> {
     for (const policy of this.policies) {
       const result = await policy.evaluate(context);
-      if (result !== undefined) return { policyName: policy.name, result };
+      if (result !== undefined) {
+        let evaluation = { policyName: policy.name, result };
+        for (const reviewer of this.reviewers) {
+          const reviewed = await reviewer(context, evaluation);
+          if (evaluation.result.kind === 'deny' || evaluation.result.kind === 'ask' && reviewed.result.kind === 'approve') continue;
+          evaluation = reviewed;
+        }
+        return evaluation;
+      }
     }
     return undefined;
   }

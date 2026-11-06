@@ -494,7 +494,7 @@ describe('KimiTUI startup', () => {
     mountFooter(driver.state);
 
     // Dock = 6 chrome containers + footer wrap, below the transcript viewport.
-    expect(driver.state.dockContainer?.children).toHaveLength(7);
+    expect(driver.state.dockContainer?.children).toHaveLength(8);
   });
 
   it('shows a session-less notice on v2 startup', async () => {
@@ -918,6 +918,35 @@ describe('KimiTUI startup', () => {
     });
     expect(harness.createSession).toHaveBeenCalledTimes(1);
     expect((driver as unknown as { startupProgressLabel(): string }).startupProgressLabel()).toBe('Connecting to dev-box…');
+  });
+
+  it('suggests runtime commands before the first session and removes unloaded commands', async () => {
+    const listRuntimeCommands = vi.fn(async () => [{ name: 'example-ui:workflows', pluginId: 'example-ui', description: 'Browse workflows' }]);
+    const harness = makeHarness(makeSession(), { listPluginCommands: vi.fn(async () => []), listRuntimeCommands });
+    const driver = makeDriver(harness, makeStartupInput());
+    const providerSpy = vi.spyOn(driver.state.editor, 'setAutocompleteProvider');
+    const host = driver as unknown as KimiTUI;
+    await host.refreshPluginCommands();
+    const provider = providerSpy.mock.calls.at(-1)![0];
+    const result = await provider.getSuggestions(['/work'], 0, 5, { signal: new AbortController().signal });
+    expect(result?.items).toContainEqual(expect.objectContaining({ value: 'workflows' }));
+    expect(harness.createSession).not.toHaveBeenCalled();
+    listRuntimeCommands.mockResolvedValue([]);
+    await host.refreshPluginCommands();
+    const updated = providerSpy.mock.calls.at(-1)![0];
+    expect(await updated.getSuggestions(['/work'], 0, 5, { signal: new AbortController().signal })).toBeNull();
+  });
+
+  it('keeps runtime suggestions when loading Markdown plugin commands fails', async () => {
+    const harness = makeHarness(makeSession(), {
+      listPluginCommands: vi.fn(async () => { throw new Error('Commands unavailable'); }),
+      listRuntimeCommands: vi.fn(async () => [{ name: 'example-ui:workflows', pluginId: 'example-ui', description: 'Browse workflows' }]),
+    });
+    const driver = makeDriver(harness, makeStartupInput());
+    const providerSpy = vi.spyOn(driver.state.editor, 'setAutocompleteProvider');
+    await (driver as unknown as KimiTUI).refreshPluginCommands();
+    const result = await providerSpy.mock.calls.at(-1)![0].getSuggestions(['/work'], 0, 5, { signal: new AbortController().signal });
+    expect(result?.items).toContainEqual(expect.objectContaining({ value: 'workflows' }));
   });
 
   it('offers no remote @ candidates while the first remote session is still connecting', async () => {

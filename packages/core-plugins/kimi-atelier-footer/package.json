@@ -1,0 +1,13 @@
+{
+  "name": "@kimi-code-plugins/atelier-footer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@moonshot-ai/kimi-code-sdk": "workspace:^"
+  }
+}

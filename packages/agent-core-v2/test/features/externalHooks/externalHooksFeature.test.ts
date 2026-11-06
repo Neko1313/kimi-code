@@ -12,6 +12,8 @@ import { IBootstrapService } from '#/app/bootstrap/bootstrap';
 import { IConfigService } from '#/app/config/config';
 import { IFeatureManager } from '#/app/feature/featureManager';
 import { FeatureManagerService } from '#/app/feature/featureManagerService';
+import { IPluginRuntimeHost } from '#/app/plugin/runtime';
+import { stubRuntimeHost } from './runner-stub';
 import { IPluginService } from '#/app/plugin/plugin';
 import { IFlagService } from '#/app/flag/flag';
 import { LifecycleScope } from '#/app/scopes';
@@ -67,6 +69,7 @@ describe('ExternalHooksFeature — assembly (src/features/externalHooks)', () =>
       [IHostProcessService, { _serviceBrand: undefined }],
       [ITelemetryService, noopTelemetryService],
       [IFlagService, stubFlag(false)],
+      [IPluginRuntimeHost, stubRuntimeHost()],
     ]);
     const manager = host.app.accessor.get(IFeatureManager);
     expect(manager.units().map((unit) => unit.name)).toContain('externalHooks');

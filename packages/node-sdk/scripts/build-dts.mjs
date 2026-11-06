@@ -25,6 +25,8 @@ try {
   await writeProviderClientShim();
   await rewriteWorkspaceSpecifiers();
   await run('api-extractor', apiExtractorBinPath, ['run', '--local']);
+  const pluginTypes = await readFile(path.join(packageRoot, 'src/plugin.ts'), 'utf8');
+  await writeFile(path.join(packageRoot, 'dist/plugin.d.mts'), pluginTypes.replaceAll(/@moonshot-ai\/agent-core-v2\/app\/plugin\/(runtime|mods)/g, './index.mjs'));
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

@@ -30,6 +30,7 @@ import { createHooks } from '#/hooks';
 import { IAgentLifecycleService } from '#/session/agentLifecycle/agentLifecycle';
 import { agentContextOf } from '#/agent/scopeContext/scopeContext';
 import { IAgentReminderService } from '#/features/reminder/reminderService';
+import { IPluginRuntimeHost } from '#/app/plugin/runtime';
 
 import {
   type AgentRunHandle,
@@ -73,6 +74,7 @@ export class SessionSubagentService extends Service implements ISessionSubagentS
     @IModelCatalog private readonly modelCatalog: IModelCatalog,
     @ISessionContext private readonly sessionContext: ISessionContext,
     @ILogService private readonly log: ILogService,
+    @IPluginRuntimeHost private readonly runtime?: IPluginRuntimeHost,
   ) {
     super();
   }
@@ -84,7 +86,8 @@ export class SessionSubagentService extends Service implements ISessionSubagentS
         details: { agentId: agent.agentId },
       });
     }
-    return runAgentTurn(handle, request, { signal: opts.signal, onReady: opts.onReady });
+    const run = () => runAgentTurn(handle, request, { signal: opts.signal, onReady: opts.onReady, resultText: opts.resultText });
+    return this.runtime === undefined ? run() : this.runtime.runCore(run);
   }
 
   async planSpawn(input: SubagentSpawnPlanInput): Promise<SubagentSpawnPlan> {
@@ -142,6 +145,30 @@ export class SessionSubagentService extends Service implements ISessionSubagentS
   }
 
   async spawn(opts: SpawnSubagentOptions): Promise<SpawnedSubagent> {
+    if (this.runtime === undefined) return this.spawnCore(opts);
+    await this.runtime.ready;
+    if (!this.runtime.hasHandlers('agent.spawn')) return this.spawnCore(opts);
+    const caller = this.requireCaller(opts.callerAgentId);
+    const profile = caller.accessor.get(IAgentProfileService).data();
+    const cwd = caller.accessor.get(IAgentEnvironmentBindingService).current.cwd ?? this.sessionContext.cwd;
+    const input = { prompt: opts.prompt, model: opts.plan.model, subagentType: opts.plan.profileName, tool_use_id: opts.toolCallId, fork: opts.plan.fork, background: opts.background ?? false, parentAgentId: opts.callerAgentId === 'main' ? undefined : opts.callerAgentId, parentModel: profile.modelAlias, permissionMode: caller.accessor.get(IAgentPermissionModeService).mode, provider: { plugin: 'engine', tier: 'core' } };
+    let spawned: SpawnedSubagent | undefined;
+    const result = await this.runtime.invoke('agent.spawn', input, { sessionId: this.sessionContext.sessionId, agentId: opts.callerAgentId, cwd }, async rewritten => {
+      for (const key of ['tool_use_id', 'fork', 'parentAgentId', 'parentModel', 'permissionMode', 'provider'] as const) if (rewritten[key] !== undefined && JSON.stringify(rewritten[key]) !== JSON.stringify(input[key])) throw new Error(`agent.spawn cannot rewrite ${key}`);
+      if (rewritten['background'] !== undefined && rewritten['background'] !== input.background || rewritten['cwd'] !== undefined || rewritten['description'] !== undefined) throw new Error('agent.spawn rewrites of background, cwd and description are not supported');
+      if (typeof rewritten['prompt'] !== 'string' || !rewritten['prompt'].trim()) throw new Error('Invalid agent spawn prompt');
+      const model = typeof rewritten['model'] === 'string' ? rewritten['model'] : opts.plan.model;
+      const profileName = typeof rewritten['subagentType'] === 'string' ? rewritten['subagentType'] : opts.plan.profileName;
+      const plan = model === opts.plan.model && profileName === opts.plan.profileName ? opts.plan : await this.planSpawn({ callerAgentId: opts.callerAgentId, fork: opts.plan.fork, profileName, model: opts.plan.fork ? undefined : model });
+      spawned = await this.spawnCore({ ...opts, plan, prompt: rewritten['prompt'] });
+      return { agentId: spawned.agentId, model: spawned.model };
+    }) as { deny?: string; agentId?: string };
+    if (result?.deny !== undefined) throw new Error(result.deny);
+    if (spawned === undefined || result.agentId !== spawned.agentId) throw new Error('agent.spawn must delegate to start this agent');
+    return spawned;
+  }
+
+  private async spawnCore(opts: SpawnSubagentOptions): Promise<SpawnedSubagent> {
     const caller = this.requireCaller(opts.callerAgentId);
     const { plan } = opts;
     const callerBinding = caller.accessor.get(IAgentEnvironmentBindingService).current;
@@ -193,6 +220,7 @@ export class SessionSubagentService extends Service implements ISessionSubagentS
       const promptText = plan.fork
         ? opts.prompt
         : await this.applyPromptPrefix(plan.profileName, opts.prompt, lease!.environment, callerBinding.cwd);
+      this.runtime?.inheritContext({ sessionId: this.sessionContext.sessionId, agentId: opts.callerAgentId, cwd: callerBinding.cwd ?? this.sessionContext.cwd }, created.id);
       return {
         agentId: created.id,
         profileName: plan.profileName,

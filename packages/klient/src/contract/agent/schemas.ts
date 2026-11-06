@@ -212,12 +212,21 @@ export const agentTaskInfoSchema = z.discriminatedUnion('kind', [
     subagentType: z.string().optional(),
     model: z.string().optional(),
     thinkingEffort: z.string().optional(),
+    parentToolCallId: z.string().optional(),
+    parentRunId: z.string().optional(),
     ...taskInfoBaseFields,
   }),
   z.object({
     kind: z.literal('question'),
     questionCount: z.number(),
     toolCallId: z.string().optional(),
+    ...taskInfoBaseFields,
+  }),
+  z.object({
+    kind: z.literal('plugin'),
+    pluginId: z.string(),
+    runId: z.string(),
+    parentToolCallId: z.string().optional(),
     ...taskInfoBaseFields,
   }),
 ]);

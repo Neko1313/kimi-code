@@ -32,6 +32,7 @@ export default defineConfig({
   },
   deps: {
     onlyBundle: false,
+    neverBundle: ['esbuild'],
   },
   outputOptions: {
     codeSplitting: false,

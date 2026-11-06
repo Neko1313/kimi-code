@@ -7,6 +7,7 @@ import {
   type Focusable,
   type TuiMouseEvent,
   type Terminal,
+  type ProcessTerminal,
   TuiAltScreen,
 } from '@moonshot-ai/pi-tui';
 /**
@@ -20,11 +21,14 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { handleGoalCommand } from '#/tui/commands/goal';
 import type { SlashCommandHost } from '#/tui/commands/dispatch';
+import { PluginPanesController, type PluginPanesHost } from '#/tui/controllers/plugin-panes';
+import type { Session } from '@moonshot-ai/kimi-code-sdk';
 import { GutterContainer } from '#/tui/components/chrome/gutter-container';
 import { MoonLoader } from '#/tui/components/chrome/moon-loader';
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
 import { StatusMessageComponent } from '#/tui/components/messages/status-message';
 import { UserMessageComponent } from '#/tui/components/messages/user-message';
+import { AgentTranscriptView } from '#/tui/components/messages/agent-transcript-view';
 import * as userMessages from '#/tui/components/messages/user-message';
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
 import { CHROME_GUTTER } from '#/tui/constant/rendering';
@@ -151,6 +155,63 @@ function pillLines(state: ReturnType<typeof createTUIState>): string[] {
 }
 
 describe('fullscreen layout', () => {
+  it('opens workflow visualizations in the model selector slot and restores the editor on Escape', async () => {
+    const { state, vt } = await mountFullscreen();
+    state.transcriptContainer.addChild(new Text('Transcript remains visible', 0, 0));
+    const unsubscribe = vi.fn();
+    let changed = () => {};
+    const plugins = {
+      closePane: vi.fn(async () => {}),
+      getView: vi.fn(async (): Promise<{ agentId?: string; revision: number }> => ({ revision: 0 })),
+      runCommand: vi.fn(async () => ({})),
+      listPanes: vi.fn(async () => [{ id: 'workflow', title: 'Workflows', pluginId: 'workflow-ui' }]),
+      renderPane: vi.fn(async () => ({ type: 'Box', props: { flexDirection: 'column' }, children: [{ type: 'Text', children: ['Workflow visualization'] }] })),
+      subscribe: vi.fn(async (listener: () => void) => { changed = listener; return unsubscribe; }),
+    };
+    const host: PluginPanesHost = {
+      pluginGraphics: { initialize: async () => false, available: false } as PluginPanesHost['pluginGraphics'],
+      session: { plugins, getAgentContext: vi.fn(async () => ({ history: [
+        { role: 'user', content: [{ type: 'text', text: 'Worker task prompt' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'Worker transcript response' }], toolCalls: [{ type: 'function', id: 'worker-tool', name: 'Read', arguments: '{"file_path":"example.ts"}' }] },
+        { role: 'tool', toolCallId: 'worker-tool', content: [{ type: 'text', text: 'Worker tool output' }] },
+      ], tokenCount: 100 })) } as unknown as Session,
+      state: { get pluginPaneViewer() { return state.pluginPaneViewer; }, terminal: vt as unknown as ProcessTerminal, ui: state.ui },
+      setPluginPaneViewer: viewer => { state.pluginPaneViewer = viewer; },
+      mountEditorReplacement: vi.fn(panel => { state.editorReplacementMounted = true; setEditorSlot(state, panel); state.ui.setFocus(panel); }),
+      restoreEditor: vi.fn(() => { state.editorReplacementMounted = false; setEditorSlot(state, state.editor); state.ui.setFocus(state.editor); }),
+      showError: vi.fn(), showNotice: vi.fn(),
+    };
+    const controller = new PluginPanesController(host);
+    const root = (state.ui as TuiAltScreen).getLayoutRoot();
+    await controller.show('workflow-ui:workflows');
+    (state.ui as TuiAltScreen).renderNow();
+    await vt.flush();
+    expect(host.mountEditorReplacement).toHaveBeenCalledOnce();
+    expect(editorSlotComponent(state)).toBe(state.pluginPaneViewer?.component);
+    expect((state.ui as TuiAltScreen).getLayoutRoot()).toBe(root);
+    expect(vt.getViewport().some(line => line.includes('Transcript remains visible'))).toBe(true);
+    expect(vt.getViewport().some(line => line.includes('Workflow visualization'))).toBe(true);
+    expect(plugins.renderPane).toHaveBeenCalledWith(expect.objectContaining({ width: WIDTH - 4, placement: 'inline' }));
+    plugins.getView.mockResolvedValue({ agentId: 'worker', revision: 1 });
+    changed();
+    await expect.poll(() => ((state.ui as TuiAltScreen).getLayoutRoot() as VStack)?.children[0] instanceof AgentTranscriptView).toBe(true);
+    const transcript = ((state.ui as TuiAltScreen).getLayoutRoot() as VStack).children[0] as AgentTranscriptView;
+    await expect.poll(async () => { (state.ui as TuiAltScreen).renderNow(); await vt.flush(); return vt.getViewport().join('\n'); }).toContain('Worker transcript response');
+    expect(vt.getViewport().join('\n')).toContain('Worker task prompt');
+    transcript.handleInput('\u001B');
+    expect((state.ui as TuiAltScreen).getLayoutRoot()).toBe(root);
+    expect(editorSlotComponent(state)).toBe(state.pluginPaneViewer?.component);
+    vt.resize(80, HEIGHT);
+    (state.ui as TuiAltScreen).renderNow();
+    await vt.flush();
+    state.pluginPaneViewer!.component.handleInput('\u001B');
+    expect(host.restoreEditor).toHaveBeenCalledOnce();
+    expect(editorSlotComponent(state)).toBe(state.editor);
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(state.pluginPaneViewer).toBeUndefined();
+    state.ui.stop();
+  });
+
   it('summarizes only the current message, jumps to its start, and searches the original text', async () => {
     const { state, vt } = await mountFullscreen();
     for (const [index, content] of ['one', 'two', 'three', 'four\nfive\nsix'].entries()) {

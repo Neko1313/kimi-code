@@ -14,6 +14,7 @@ Kimi Code CLI 可以使用内置配色，也可以使用自定义 JSON 主题文
 | `textStrong` | `#F5F5F5` | `#1A1A1A` | 加粗强调文字。输入类对话框、状态消息 |
 | `textDim` | `#888888` | `#454545` | 次级、变暗文字。思考、提示、已完成 todo、Markdown 引用、footer 状态栏 |
 | `textMuted` | `#6B6B6B` | `#5F5F5F` | 最浅文字。计数、滚动信息、Markdown 链接 URL、代码块边框 |
+| `canvasBackground` | `#18191B` | `#FFFFFF` | 插件 SVG 画布背景 |
 | `border` | `#5A5A5A` | `#737373` | 面板与编辑器的普通边框、Markdown 分隔线 |
 | `borderFocus` | `#E8A838` | `#92660A` | 聚焦/注意边框，目前仅审批面板使用 |
 | `success` | `#4EC87E` | `#0E7A38` | 成功态。`✓`、已启用、完成 |

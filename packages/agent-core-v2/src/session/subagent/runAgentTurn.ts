@@ -36,6 +36,7 @@ type CompletedTurnResult = Extract<TurnResult, { readonly type: 'completed' }>;
 export interface RunAgentTurnOptions {
   readonly signal: AbortSignal;
   readonly onReady?: () => void;
+  readonly resultText?: () => string | undefined;
 }
 
 export async function runAgentTurn(
@@ -84,7 +85,7 @@ async function awaitRun(
   };
   try {
     const result = classifyTurnResult(await awaitTurn(turn, controller, cancelTurn));
-    const summary = latestAssistantText(target.accessor.get(IAgentContextMemoryService).get());
+    const summary = options.resultText?.() ?? latestAssistantText(target.accessor.get(IAgentContextMemoryService).get());
     const stopReason = result.stopReason;
     if (summary.trim().length === 0) {
       throw new Error2(

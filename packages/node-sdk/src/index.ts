@@ -2,6 +2,9 @@ import type { KimiHarnessEnvironmentOptions } from '#/kimi-harness';
 export { KimiHarness } from '#/kimi-harness';
 export type { KimiHarnessEnvironmentOptions, KimiHarnessRuntimeOptions } from '#/kimi-harness';
 export { Session } from '#/session';
+export type { PluginRuntimeClient, PluginCallRequest, PluginKeyRequest, PluginPaneRequest } from '#/plugin-runtime';
+export type * from '#/plugin';
+export { atom, read, update } from '#/plugin';
 export { KimiAuthFacade } from '#/auth';
 export {
   createKimiHarness,

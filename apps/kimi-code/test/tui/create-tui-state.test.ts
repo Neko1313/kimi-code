@@ -130,6 +130,7 @@ describe('createTUIState', () => {
       state.queueContainer,
       state.btwPanelContainer,
       state.surveyContainer,
+      state.pluginChromeContainer,
       state.editorSlot,
     ]);
     expect(state.editorSlot?.children).toEqual([state.editorContainer]);

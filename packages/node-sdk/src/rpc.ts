@@ -182,6 +182,44 @@ export interface ConfigSectionChange {
 }
 
 export abstract class SDKRpcClientBase {
+  async getPluginView(_input: SessionIdRpcInput & { clientId?: string }): Promise<import('@moonshot-ai/agent-core-v2/app/plugin/runtime').RuntimeView> { return { revision: 0 }; }
+  async openPluginSite(_input: SessionIdRpcInput & { component: string; surface?: import('@moonshot-ai/agent-core-v2/app/plugin/runtime').RuntimeRenderSurface; props?: Record<string, unknown> }): Promise<string | undefined> { return undefined; }
+  async renderPluginSite(_input: SessionIdRpcInput & import('@moonshot-ai/agent-core-v2/app/plugin/runtime').RuntimeSiteRequest): Promise<import('#/plugin-runtime').RuntimeElement | undefined> { return undefined; }
+  async dispatchPluginSiteKey(_input: SessionIdRpcInput & { component: string; requestId?: string; key: string; clientId?: string }): Promise<void> { throw new Error('Plugin runtime requires the v2 engine'); }
+
+  async closePluginPane(_input: SessionIdRpcInput & { id: string }): Promise<void> {}
+
+  async listPluginPanes(_input: SessionIdRpcInput): Promise<readonly import('#/plugin-runtime').PluginPaneInfo[]> {
+    return [];
+  }
+
+  async renderPluginPane(_input: SessionIdRpcInput & import('#/plugin-runtime').PluginPaneRequest): Promise<import('#/plugin-runtime').RuntimeElement | undefined> {
+    return undefined;
+  }
+
+  async dispatchPluginKey(_input: SessionIdRpcInput & import('#/plugin-runtime').PluginKeyRequest): Promise<void> {
+    throw new Error('Plugin runtime requires the v2 engine');
+  }
+
+  async listRuntimeCommands(_input: SessionIdRpcInput): Promise<readonly import('#/plugin-runtime').RuntimeCommand[]> {
+    return [];
+  }
+
+  async listRuntimeCommandsGlobal(): Promise<readonly import('#/plugin-runtime').RuntimeCommand[]> {
+    return [];
+  }
+
+  async runRuntimeCommand(_input: SessionIdRpcInput & { name: string; args?: string }): Promise<unknown> {
+    throw new Error('Plugin runtime requires the v2 engine');
+  }
+
+  async callPluginMethod(_input: SessionIdRpcInput & import('#/plugin-runtime').PluginCallRequest): Promise<unknown> {
+    throw new Error('Plugin runtime requires the v2 engine');
+  }
+
+  async subscribePluginRuntime(_input: SessionIdRpcInput, _listener: () => void): Promise<Unsubscribe> {
+    return () => {};
+  }
   private readonly interactiveAgentScope = new AsyncLocalStorage<string>();
   private readonly eventListeners = new Set<(event: Event) => void>();
   private readonly approvalHandlers = new Map<string, ApprovalHandler>();

@@ -1850,6 +1850,7 @@ export class AgentLoopService extends Disposable implements IAgentLoopService {
       readonly note?: string;
       readonly stopTurn?: boolean;
       readonly stopTurnReason?: string;
+      readonly context?: readonly string[];
     },
     durationMs?: number,
   ): void {
@@ -1862,6 +1863,7 @@ export class AgentLoopService extends Disposable implements IAgentLoopService {
       toolCallId,
       result: { output: result.output, isError: result.isError, note: result.note, durationMs },
     });
+    if (result.context !== undefined && result.context.length > 0) this.context.append({ role: 'user', content: result.context.map(text => ({ type: 'text', text })), origin: { kind: 'injection', variant: 'plugin-tool-context' } });
     step.resolvedToolIds.add(toolCallId);
     if (result.stopTurn === true) {
       step.toolStopTurn = true;

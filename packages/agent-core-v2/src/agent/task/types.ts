@@ -83,11 +83,19 @@ export type TaskInfo = TaskInfoBase &
         readonly subagentType?: string;
         readonly model?: string;
         readonly thinkingEffort?: string;
+        readonly parentToolCallId?: string;
+        readonly parentRunId?: string;
       }
     | {
         readonly kind: 'question';
         readonly questionCount: number;
         readonly toolCallId?: string;
+      }
+    | {
+        readonly kind: 'plugin';
+        readonly pluginId: string;
+        readonly runId: string;
+        readonly parentToolCallId?: string;
       }
   );
 

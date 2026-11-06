@@ -29,6 +29,7 @@ export type SubagentHandle = {
   readonly agentId: string;
   readonly profileName: string;
   readonly parentToolCallId?: string;
+  readonly parentRunId?: string;
   readonly model?: string;
   readonly modelSource?: SubagentModelSource;
   readonly thinkingEffort?: string;
@@ -41,6 +42,7 @@ export interface SubagentTaskInfo extends AgentTaskInfoBase {
   readonly agentId?: string;
   readonly subagentType?: string;
   readonly parentToolCallId?: string;
+  readonly parentRunId?: string;
   readonly model?: string;
   readonly thinkingEffort?: string;
   readonly stopCode?: string;
@@ -107,6 +109,7 @@ export class SubagentTask implements AgentTask {
   readonly agentId: string;
   readonly subagentType: string;
   readonly parentToolCallId?: string;
+  readonly parentRunId?: string;
   readonly model?: string;
   readonly thinkingEffort?: string;
   private stopCode: string | undefined;
@@ -121,6 +124,7 @@ export class SubagentTask implements AgentTask {
     this.agentId = handle.agentId;
     this.subagentType = handle.profileName;
     this.parentToolCallId = handle.parentToolCallId;
+    this.parentRunId = handle.parentRunId;
     this.model = handle.model;
     this.thinkingEffort = handle.thinkingEffort;
   }
@@ -180,6 +184,7 @@ export class SubagentTask implements AgentTask {
       agentId: this.agentId,
       subagentType: this.subagentType,
       parentToolCallId: this.parentToolCallId,
+      parentRunId: this.parentRunId,
       model: this.model,
       thinkingEffort: this.thinkingEffort,
       stopCode: this.stopCode,

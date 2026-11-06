@@ -84,6 +84,7 @@ import {
   sleepForRetry,
 } from '#/_base/utils/retry';
 import { IBootstrapService } from '#/app/bootstrap/bootstrap';
+import { IAgentRequestHooks } from './requestHooks';
 
 const noopOnPart: AgentLLMRequestPartHandler = () => {};
 
@@ -195,6 +196,7 @@ export class AgentLoopRequester implements LoopRequester {
     @IAgentScopeContext private readonly scopeContext: IAgentScopeContext,
     @IAgentStateService private readonly states: IAgentStateService,
     @IBootstrapService private readonly bootstrap: IBootstrapService,
+    @IAgentRequestHooks private readonly requestHooks: IAgentRequestHooks,
   ) {
     this.projector = new AgentLoopProjector(log, telemetry, states);
     this.states.contributeState(llmRequestTraceKey);
@@ -405,6 +407,7 @@ export class AgentLoopRequester implements LoopRequester {
             ...(mediaPolicy === undefined ? [] : [mediaPolicy.toolResolver]),
             structureResolver,
             ...(mediaPolicy === undefined ? [] : [mediaPolicy.resolver]),
+            this.requestHooks,
           ],
           recoveryLedger,
           onAttempt: (attemptInput, attemptRequest) => {

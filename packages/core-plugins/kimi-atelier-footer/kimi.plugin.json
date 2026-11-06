@@ -1,0 +1,10 @@
+{
+  "name": "kimi-atelier-footer",
+  "version": "0.1.0",
+  "description": "Place Atelier's context and quota indicators in Kimi's footer.",
+  "runtime": {
+    "api": "claude-mods",
+    "modules": ["./runtime/index.ts"],
+    "capabilities": ["events", "ui", "state"]
+  }
+}

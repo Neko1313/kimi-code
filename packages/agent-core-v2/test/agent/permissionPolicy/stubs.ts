@@ -8,6 +8,7 @@ export function stubPermissionPolicyService(
 ): IAgentPermissionPolicyService {
   return {
     _serviceBrand: undefined,
+    registerReviewer: () => ({ dispose() {} }),
     evaluate: () => Promise.resolve(next()),
   };
 }

@@ -156,6 +156,21 @@ describe('AgentPermissionPolicyService chain', () => {
     });
   });
 
+  it('allows reviewers to tighten decisions without promoting deny or ask', async () => {
+    const svc = service();
+    const approval = svc.registerReviewer(async () => ({ policyName: 'runtime', result: { kind: 'approve', reason: {} } }));
+    await expect(evaluate({ toolName: 'ExampleTool', args: {} })).resolves.toMatchObject({ result: { kind: 'ask' } });
+    rules.push({ decision: 'deny', scope: 'user', pattern: 'ExampleTool' });
+    await expect(evaluate({ toolName: 'ExampleTool', args: {} })).resolves.toMatchObject({ policyName: 'user-configured-deny', result: { kind: 'deny' } });
+    approval.dispose();
+    rules.length = 0;
+    mode = 'yolo';
+    const denial = svc.registerReviewer(async () => ({ policyName: 'runtime', result: { kind: 'deny', message: 'Blocked by plugin' } }));
+    await expect(evaluate({ toolName: 'ExampleTool', args: {} })).resolves.toMatchObject({ policyName: 'runtime', result: { kind: 'deny' } });
+    denial.dispose();
+    await expect(evaluate({ toolName: 'ExampleTool', args: {} })).resolves.toMatchObject({ result: { kind: 'approve' } });
+  });
+
   it('applies deny rules before yolo-mode approval', async () => {
     mode = 'yolo';
     rules.push({

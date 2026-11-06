@@ -2,6 +2,7 @@ import type { SwarmModeTrigger } from '@moonshot-ai/agent-core-v2/features/swarm
 
 import type { AgentContextData } from '#/context';
 import { ErrorCodes, KimiError, type KimiErrorCode } from '#/errors';
+import { createPluginRuntimeClient, type PluginRuntimeClient } from '#/plugin-runtime';
 
 import {
   type ApprovalHandler,
@@ -89,6 +90,7 @@ export function capabilityRpc(rpc: SDKRpcClientBase): CapabilityRpcSurface {
 }
 
 export class Session {
+  readonly plugins: PluginRuntimeClient;
   readonly id: string;
   readonly workDir: string;
   summary?: SessionSummary | undefined;
@@ -104,6 +106,7 @@ export class Session {
     this.summary = options.summary;
     this.resumeState = options.resumeState ?? resumeStateFromSummary(options.summary);
     this.rpc = options.rpc;
+    this.plugins = createPluginRuntimeClient(this.rpc, this.id, () => this.ensureOpen());
     this.onClose = options.onClose;
   }
 
@@ -459,6 +462,11 @@ export class Session {
   async getContext(): Promise<AgentContextData> {
     this.ensureOpen();
     return this.rpc.getContext({ sessionId: this.id });
+  }
+
+  async getAgentContext(agentId: string): Promise<AgentContextData> {
+    this.ensureOpen();
+    return this.rpc.withInteractiveAgent(agentId, () => this.rpc.getContext({ sessionId: this.id }));
   }
 
   async getUsage(): Promise<SessionUsage> {

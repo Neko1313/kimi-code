@@ -8,8 +8,10 @@ import type { ThinkingEffort } from '#human/llm-requester/thinking';
 import { defineState } from '#/state/state';
 
 import { ProfileError, ProfileErrors } from './profile';
+import { instructionPromptSchema, type InstructionPrompt } from './instructionFile';
 
 export interface ProfileModelState {
+  readonly instructionPrompt?: InstructionPrompt;
   readonly modelAlias?: string;
   readonly profileName?: string;
   readonly thinkingLevel: string;
@@ -22,6 +24,7 @@ export interface ProfileModelState {
 }
 
 const profileBindSchema = z.object({
+  instructionPrompt: instructionPromptSchema.optional(),
   agentId: z.string(),
   modelAlias: z.string().optional(),
   profileName: z.string().optional(),
@@ -41,6 +44,7 @@ export class ProfileBind extends AgentEvent2<z.infer<typeof profileBindSchema>> 
   static override readonly schema = profileBindSchema;
 }
 export interface ProfileBind {
+  readonly instructionPrompt?: InstructionPrompt;
   readonly agentId: string;
   readonly modelAlias?: string;
   readonly profileName?: string;
@@ -55,6 +59,7 @@ export interface ProfileBind {
 }
 
 const configUpdateSchema = z.object({
+  instructionPrompt: instructionPromptSchema.optional(),
   agentId: z.string(),
   modelAlias: z.string().optional(),
   profileName: z.string().optional(),
@@ -75,6 +80,7 @@ export class ConfigUpdate extends AgentEvent2<ConfigUpdatePayload> {
   static override readonly schema = configUpdateSchema;
 }
 export interface ConfigUpdate {
+  readonly instructionPrompt?: InstructionPrompt;
   readonly agentId: string;
   readonly modelAlias?: string;
   readonly profileName?: string;
@@ -136,6 +142,7 @@ export const profileKey = defineState(
   }),
 ).replayable({ schema: z.custom<ProfileModelState>() })
   .on(ProfileBind, (s, e) => ({
+    instructionPrompt: e.instructionPrompt,
     modelAlias: e.modelAlias ?? s.modelAlias,
     profileName: e.profileName ?? s.profileName,
     thinkingLevel: e.thinkingEffort,
@@ -164,6 +171,7 @@ export const profileKey = defineState(
         e.renderGeneration !== undefined)
     ) {
       s.systemPrompt = e.systemPrompt;
+      s.instructionPrompt = e.instructionPrompt as typeof s.instructionPrompt;
       s.environmentDisclosure = e.environmentDisclosure;
       s.renderGeneration = e.renderGeneration ?? s.renderGeneration + 1;
     }

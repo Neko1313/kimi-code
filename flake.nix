@@ -64,7 +64,9 @@
       workspacePaths = [
         ./packages/acp-server
         ./packages/agent-core-v2
+        ./packages/core-plugins/kimi-atelier-footer
         ./packages/core-plugins/kimi-workflow
+        ./packages/core-plugins/kimi-workflow-ui
         ./packages/kap-server
         ./packages/klient
         ./packages/migration-legacy
@@ -89,7 +91,9 @@
       workspaceNames = [
         "@moonshot-ai/acp-server"
         "@moonshot-ai/agent-core-v2"
+        "@kimi-code-plugins/atelier-footer"
         "@kimi-code-plugins/workflow"
+        "@kimi-code-plugins/workflow-ui"
         "@moonshot-ai/kap-server"
         "@moonshot-ai/migration-legacy"
         "@moonshot-ai/minidb"

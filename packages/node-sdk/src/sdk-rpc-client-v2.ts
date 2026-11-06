@@ -1126,6 +1126,10 @@ export class SDKRpcClientV2 extends SDKRpcClientBase {
     return this.klient.global.plugins.listCommands();
   }
 
+  override async listRuntimeCommandsGlobal() {
+    return this.klient.global.plugins.listRuntimeCommands();
+  }
+
   // -----------------------------------------------------------------------
   // Session lifecycle
   //
@@ -2124,6 +2128,58 @@ export class SDKRpcClientV2 extends SDKRpcClientBase {
   private async agentFacade(sessionId: string): Promise<AgentHandle> {
     await this.agentScope(sessionId);
     return this.klient.session(sessionId).agent(this.interactiveAgentId);
+  }
+
+  override async openPluginSite(input: SessionIdRpcInput & { component: string; surface?: import('@moonshot-ai/agent-core-v2/app/plugin/runtime').RuntimeRenderSurface; props?: Record<string, unknown> }) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.openSite(request);
+  }
+
+  override async renderPluginSite(input: SessionIdRpcInput & import('@moonshot-ai/agent-core-v2/app/plugin/runtime').RuntimeSiteRequest) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.renderSite(request);
+  }
+
+  override async dispatchPluginSiteKey(input: SessionIdRpcInput & { component: string; requestId?: string; key: string; clientId?: string }) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.dispatchSiteKey(request);
+  }
+
+  override async getPluginView(input: SessionIdRpcInput & { clientId?: string }) { return (await this.agentFacade(input.sessionId)).plugins.getView({ clientId: input.clientId }); }
+
+  override async closePluginPane(input: SessionIdRpcInput & { id: string }) { return (await this.agentFacade(input.sessionId)).plugins.closePane({id:input.id}); }
+
+  override async listPluginPanes(input: SessionIdRpcInput) {
+    return (await this.agentFacade(input.sessionId)).plugins.listPanes();
+  }
+
+  override async renderPluginPane(input: SessionIdRpcInput & import('#/plugin-runtime').PluginPaneRequest) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.renderPane(request);
+  }
+
+  override async dispatchPluginKey(input: SessionIdRpcInput & import('#/plugin-runtime').PluginKeyRequest) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.dispatchKey(request);
+  }
+
+  override async listRuntimeCommands(input: SessionIdRpcInput) {
+    return (await this.agentFacade(input.sessionId)).plugins.listCommands();
+  }
+
+  override async runRuntimeCommand(input: SessionIdRpcInput & { name: string; args?: string }) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.runCommand(request);
+  }
+
+  override async callPluginMethod(input: SessionIdRpcInput & import('#/plugin-runtime').PluginCallRequest) {
+    const { sessionId, ...request } = input;
+    return (await this.agentFacade(sessionId)).plugins.call(request);
+  }
+
+  override async subscribePluginRuntime(input: SessionIdRpcInput, listener: () => void): Promise<Unsubscribe> {
+    const subscription = (await this.agentFacade(input.sessionId)).events.on('plugins.changed', listener);
+    return () => subscription.dispose();
   }
 
   /**

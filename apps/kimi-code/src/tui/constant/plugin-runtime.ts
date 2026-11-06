@@ -1,0 +1,4 @@
+export const PLUGIN_CHROME_REFRESH_MS = 100;
+export const PLUGIN_CHROME_POLL_MS = 5000;
+export const PLUGIN_UI_DISCOVERY_MS = 30000;
+export const PLUGIN_CHROME_MAX_ROWS = 12;

@@ -20,12 +20,15 @@ export interface ToolCallStartedPayload {
 }
 
 export interface ToolExecutorExecuteOptions {
+  readonly origin?: 'plugin';
   readonly signal: AbortSignal;
   readonly steerSignal?: AbortSignal;
   readonly turnId: number;
   readonly trace?: LLMRequestTrace;
   readonly remind?: ToolRemind;
   readonly onToolCall?: (payload: ToolCallStartedPayload) => void;
+  readonly deferResult?: boolean;
+  readonly deferStarted?: boolean;
 }
 
 export interface ToolExecutionResult {
@@ -34,6 +37,8 @@ export interface ToolExecutionResult {
   readonly result: ToolResult;
   readonly durationMs: number;
 }
+
+export type ToolCallMiddleware = (call: ToolCall, options: ToolExecutorExecuteOptions, next: (call: ToolCall) => Promise<ToolExecutionResult>) => Promise<ToolExecutionResult>;
 
 export type MissingToolDescriber = (toolName: string) => string | undefined;
 export type UnavailableToolDescriber = (toolName: string) => string | undefined;
@@ -48,6 +53,7 @@ export interface IAgentToolExecutorService {
   readonly _serviceBrand: undefined;
 
   execute(calls: ToolCall[], options: ToolExecutorExecuteOptions): AsyncIterable<ToolExecutionResult>;
+  registerCallMiddleware(middleware: ToolCallMiddleware, enabled: () => boolean): IDisposable;
 
   readonly onBeforeExecuteTool: Event<BeforeToolExecuteEvent>;
 

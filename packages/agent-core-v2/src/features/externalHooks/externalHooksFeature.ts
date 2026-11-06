@@ -9,8 +9,6 @@ import { IExternalHooksRunnerService } from './app/externalHooksRunner';
 import { ExternalHooksRunnerService } from './app/externalHooksRunnerService';
 import { ISessionExternalHooksService } from './session/sessionExternalHooks';
 import { SessionExternalHooksService } from './session/sessionExternalHooksService';
-import { IPluginRuntimeHost } from '#/app/plugin/runtime';
-import { PluginRuntimeHost } from '#/app/plugin/runtimeHost';
 
 export class ExternalHooksFeature extends Feature {
   static override readonly name = 'externalHooks';
@@ -21,11 +19,6 @@ export class ExternalHooksFeature extends Feature {
       LifecycleScope.App,
       IExternalHooksRunnerService,
       ExternalHooksRunnerService,
-    );
-    this.contributeService(
-      LifecycleScope.App,
-      IPluginRuntimeHost,
-      PluginRuntimeHost,
     );
     this.contributeService(
       LifecycleScope.Session,

@@ -10,6 +10,7 @@ import type {
 } from '#/tool/toolContract';
 
 export interface ToolExecutionHookContext {
+  readonly origin?: 'plugin';
   readonly turnId: number;
   readonly signal: AbortSignal;
   readonly trace?: LLMRequestTrace;

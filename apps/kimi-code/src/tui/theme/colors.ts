@@ -41,6 +41,7 @@ export interface ColorPalette {
 
   // ── Surface ──
   /** Borders: pane & editor borders, markdown horizontal rule. */
+  canvasBackground: string;
   border: string;
   /** Focus / attention border — currently only the approval panel. */
   borderFocus: string;
@@ -88,6 +89,7 @@ export const darkColors: ColorPalette = {
   textDim: '#888888',
   textMuted: '#6B6B6B',
 
+  canvasBackground: '#18191B',
   border: '#5A5A5A',
   borderFocus: '#E8A838',
 
@@ -115,6 +117,7 @@ export const lightColors: ColorPalette = {
   textDim: '#454545',
   textMuted: '#5F5F5F',
 
+  canvasBackground: '#FFFFFF',
   border: '#737373',
   borderFocus: '#92660A',
 

@@ -7,6 +7,7 @@ import type { AgentContext } from '#/agent/agentContext/agentContext';
 import { IAgentContextMemoryService } from '#/agent/contextMemory/contextMemory';
 import type { ContextMessage } from '#/agent/contextMemory/types';
 import { AgentLoopRequester, KIMI_CODE_INFINITE_RETRY_ENV } from '#/agent/loop/requester';
+import { AgentRequestHooks, IAgentRequestHooks } from '#/agent/loop/requestHooks';
 import { createAgentMediaPolicy } from '#/agent/loop/mediaPolicy';
 import { createMachineRequester } from '#/agent/loop/machine/requester';
 import { IBootstrapService } from '#/app/bootstrap/bootstrap';
@@ -296,6 +297,7 @@ function createService(
   });
   registerTestEventDispatcher(ix);
   ix.set(IAgentStateService, new AgentStateService());
+  ix.set(IAgentRequestHooks, new AgentRequestHooks());
   const service = ix.createInstance(AgentLoopRequester);
   service.registerMediaPolicy((model, request) =>
     createAgentMediaPolicy(mediaResolver, model, request),

@@ -1,4 +1,5 @@
 import { Disposable } from '#/_base/di/lifecycle';
+import { join } from 'pathe';
 import { IInstantiationService } from '#/_base/di/instantiation';
 import { LifecycleScope } from '#/app/scopes';
 import { ScopeActivation, registerScopedService } from '#/_base/di/scope';
@@ -43,6 +44,7 @@ import type { ResolvedAgentProfile, SystemPromptContext } from '#/agent/profile/
 import { IAgentScopeContext } from '#/agent/scopeContext/scopeContext';
 import { IAgentStateService } from '#/agent/state/agentState';
 import { IAgentAgentsMdReminderService } from '#/agent/agentsMdReminder/agentsMdReminder';
+import { prepareInstructionPrompt } from './instructionPrompt';
 import { IAgentChangeNotifierService } from '#/agent/changeNotifier/changeNotifier';
 
 import { ITelemetryService } from '#/app/telemetry/telemetry';
@@ -275,6 +277,7 @@ export class AgentProfileService extends Disposable implements IAgentProfileServ
       snapshot.agentsMdPaths ?? extractAgentsMdPathsFromSystemPrompt(snapshot.systemPrompt);
     void this.dispatcher.dispatch(
       new ProfileBind({
+        instructionPrompt: snapshot.instructionPrompt,
         agentId: this.scopeContext.agentId,
         modelAlias: snapshot.modelAlias,
         profileName: snapshot.profileName,
@@ -370,6 +373,7 @@ export class AgentProfileService extends Disposable implements IAgentProfileServ
 
     this.activeToolNamesOverlay = undefined;
     await this.dispatcher.dispatch(new ProfileBind({
+      instructionPrompt: prepareInstructionPrompt(profile, context, [this.bootstrap.homeDir, join(this.bootstrap.osHomeDir, '.agents')]),
       agentId: this.scopeContext.agentId,
       modelAlias: alias,
       profileName: profile.name,
@@ -449,6 +453,7 @@ export class AgentProfileService extends Disposable implements IAgentProfileServ
     const rendered = renderAgentProfilePrompt(profile, context);
     this.update({
       profileName: profile.name,
+      instructionPrompt: prepareInstructionPrompt(profile, context, [this.bootstrap.homeDir, join(this.bootstrap.osHomeDir, '.agents')]),
       systemPrompt: rendered.text,
       environmentDisclosure: rendered.environment,
       agentsMdPaths: context.agentsMdPaths ?? [],
@@ -491,6 +496,7 @@ export class AgentProfileService extends Disposable implements IAgentProfileServ
   data(): ProfileData {
     const model = this.tryResolveRawModel();
     return {
+      instructionPrompt: this.profileState.instructionPrompt,
       modelAlias: this.modelAlias,
       modelCapabilities: model?.capabilities ?? UNKNOWN_CAPABILITY,
       profileName: this.profileName,
@@ -606,6 +612,7 @@ export class AgentProfileService extends Disposable implements IAgentProfileServ
       payload.thinkingEffort = this.resolveThinkingEffort(requested, model);
     }
     if (changed.systemPrompt !== undefined) {
+      payload.instructionPrompt = changed.instructionPrompt;
       payload.systemPrompt = changed.systemPrompt;
       if (changed.environmentDisclosure !== undefined) {
         payload.environmentDisclosure = changed.environmentDisclosure;

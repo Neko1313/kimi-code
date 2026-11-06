@@ -1,4 +1,4 @@
-import type { PluginCommandDef } from '@moonshot-ai/kimi-code-sdk';
+import type { PluginCommandDef, RuntimeCommand } from '@moonshot-ai/kimi-code-sdk';
 
 import type { KimiSlashCommand } from './types';
 
@@ -24,4 +24,18 @@ export function buildPluginSlashCommands(defs: readonly PluginCommandDef[]): Plu
     } satisfies KimiSlashCommand;
   });
   return { commands, commandMap };
+}
+
+export function buildRuntimeSlashCommands(defs: readonly RuntimeCommand[], reserved: readonly KimiSlashCommand[]): readonly KimiSlashCommand[] {
+  const occupied = new Set(reserved.flatMap(command => [command.name, ...(command.aliases ?? [])]));
+  const counts = new Map<string, number>();
+  for (const command of defs) {
+    const short = command.name.split(':').at(-1)!;
+    counts.set(short, (counts.get(short) ?? 0) + 1);
+  }
+  return defs.filter(command => !occupied.has(command.name)).map(command => {
+    const short = command.name.split(':').at(-1)!;
+    const useShort = counts.get(short) === 1 && !occupied.has(short);
+    return { name: useShort ? short : command.name, aliases: useShort ? [command.name] : [], description: command.description };
+  });
 }

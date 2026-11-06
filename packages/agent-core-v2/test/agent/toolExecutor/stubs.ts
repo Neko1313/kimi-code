@@ -27,6 +27,7 @@ export function stubToolExecutorEvents(): ToolExecutorEventStubs {
   const didExecuteSlot = new OrderedHookSlot<ToolDidExecuteContext>();
   const executor: IAgentToolExecutorService = {
     _serviceBrand: undefined,
+    registerCallMiddleware: () => ({ dispose() {} }),
     execute: async function* () {},
     onBeforeExecuteTool: beforeEmitter.event,
     onWillExecuteTool: willEmitter.event,

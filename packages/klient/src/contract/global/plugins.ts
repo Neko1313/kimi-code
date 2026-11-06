@@ -79,7 +79,7 @@ const pluginCommandEntrySchema = z.object({
   name: z.string(),
 });
 
-const pluginManifestKindSchema = z.enum(['kimi-plugin-root', 'kimi-plugin-dir']);
+const pluginManifestKindSchema = z.enum(['kimi-plugin-root', 'kimi-plugin-dir', 'claude-plugin-dir']);
 
 const pluginSourceSchema = z.enum(['local-path', 'zip-url', 'github']);
 
@@ -91,6 +91,7 @@ const pluginGithubRefSchema = z.object({
 });
 
 export const pluginManifestSchema = z.object({
+  runtime: z.object({ api: z.enum(['native', 'claude-mods']).optional(), modules: z.array(z.string()), capabilities: z.array(z.enum(['events', 'log', 'store', 'clock', 'process', 'ui', 'state', 'agent', 'tasks', 'command', 'domains', 'script', 'tools', 'prompt', 'fs', 'env', 'session'])), options: z.record(z.string(), z.unknown()).optional(), optionSchema: z.record(z.string(), z.unknown()).optional(), tools: z.array(z.object({ name: z.string(), description: z.string(), method: z.string(), inputSchema: z.record(z.string(), z.unknown()), isDeferred: z.boolean().optional() })).optional() }).optional(),
   name: z.string(),
   version: z.string().optional(),
   description: z.string().optional(),
@@ -201,6 +202,12 @@ export const pluginCommandDefSchema = z.object({
   body: z.string(),
   path: z.string(),
 });
+
+export const runtimeCommandSchema = z.object({ name: z.string(), description: z.string(), pluginId: z.string() });
+
+export const pluginRuntimeCatalogContract = {
+  listCommands: { input: z.tuple([]), output: z.array(runtimeCommandSchema) },
+} satisfies ServiceContract;
 
 export const installPluginInputSchema = z.union([
   z.object({ source: z.string() }).strict(),

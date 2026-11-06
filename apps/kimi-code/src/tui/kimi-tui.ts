@@ -14,6 +14,7 @@ import type {
   KimiHarness,
   PermissionMode,
   PluginCommandDef,
+  RuntimeCommand,
   PromptPart,
   PromptSubmissionResult,
   Session,
@@ -60,6 +61,7 @@ import { readBannerDisplayState, writeBannerDisplayState } from './banner/state'
 import {
   BUILTIN_SLASH_COMMANDS,
   buildPluginSlashCommands,
+  buildRuntimeSlashCommands,
   buildSkillSlashCommands,
   goalObjectiveLengthWarning,
   isExperimentalFlagEnabled,
@@ -148,6 +150,8 @@ import { StreamingUIController } from './controllers/streaming-ui';
 import { SurveyController } from './controllers/survey-controller';
 import { TasksBrowserController } from './controllers/tasks-browser';
 import { PluginPanesController } from './controllers/plugin-panes';
+import { PluginGraphics } from './controllers/plugin-graphics';
+import { PluginChromeController } from './controllers/plugin-chrome';
 import { installRainbowDance } from './easter-eggs/dance';
 import { adaptPanelResponse } from './reverse-rpc/approval/adapter';
 import { ApprovalController } from './reverse-rpc/approval/controller';
@@ -388,6 +392,7 @@ export class KimiTUI {
   private skillCommands: readonly KimiSlashCommand[] = [];
   readonly skillCommandMap = new Map<string, string>();
   private pluginCommands: readonly KimiSlashCommand[] = [];
+  private runtimeCommands: readonly RuntimeCommand[] = [];
   readonly pluginCommandMap = new Map<string, string>();
   private readonly imageStore = new ImageAttachmentStore();
   // Detected lazily in startBackgroundFdAutocomplete() — detection spawns
@@ -435,6 +440,8 @@ export class KimiTUI {
   readonly sessionReplay: SessionReplayRenderer;
   readonly tasksBrowserController: TasksBrowserController;
   readonly pluginPanesController: PluginPanesController;
+  readonly pluginChromeController: PluginChromeController;
+  readonly pluginGraphics: PluginGraphics;
   readonly surveyController: SurveyController;
   readonly editorKeyboard: EditorKeyboardController;
   readonly modelMigration: ModelMigrationController;
@@ -560,7 +567,9 @@ export class KimiTUI {
     this.sessionEventHandler = new SessionEventHandler(this);
     this.sessionReplay = new SessionReplayRenderer(this);
     this.tasksBrowserController = new TasksBrowserController(this);
+    this.pluginGraphics = new PluginGraphics(() => this.state.ui.requestRender(), message => { log.warn(message); this.showStatus(message, 'warning'); this.pluginChromeController?.refresh(); }, data => this.state.terminal.write(data), () => isExperimentalFlagEnabled('plugin_graphics'));
     this.pluginPanesController = new PluginPanesController(this);
+    this.pluginChromeController = new PluginChromeController(this);
     this.surveyController = new SurveyController(this, {
       accessToken: () => this.harness.auth.getCachedAccessToken(),
       telemetryDisabled: () => isTelemetryDisabledByEnv() || this.telemetryDisabled,
@@ -579,7 +588,8 @@ export class KimiTUI {
     const builtins = sortSlashCommands(BUILTIN_SLASH_COMMANDS).filter((command) =>
       isExperimentalFlagEnabled(command.experimentalFlag),
     );
-    return [...builtins, ...this.skillCommands, ...this.pluginCommands];
+    const commands = [...builtins, ...this.skillCommands, ...this.pluginCommands];
+    return [...commands, ...buildRuntimeSlashCommands(this.runtimeCommands, commands)];
   }
 
   private setupAutocomplete(): void {
@@ -698,23 +708,15 @@ export class KimiTUI {
   }
 
   async refreshPluginCommands(session?: Session): Promise<void> {
-    if (session === undefined) {
-      // v2 engine: the enabled plugin commands are an app-global live view,
-      // available before the first (lazy) session is created.
-      try {
-        const defs = await this.harness.listPluginCommands();
-        this.applyPluginCommands(defs);
-      } catch {}
-      return;
-    }
-
-    let defs;
-    try {
-      defs = await session.listPluginCommands();
-    } catch {
-      return;
-    }
-    this.applyPluginCommands(defs);
+    this.pluginChromeController.refresh(true);
+    const [defs, runtime] = await Promise.allSettled([
+      (async () => session === undefined ? this.harness.listPluginCommands() : session.listPluginCommands())(),
+      (async () => session === undefined ? this.harness.listRuntimeCommands() : session.plugins.listCommands())(),
+    ]);
+    if (session !== this.session) return;
+    if (runtime.status === 'fulfilled') this.runtimeCommands = runtime.value;
+    if (defs.status === 'fulfilled') this.applyPluginCommands(defs.value);
+    else if (runtime.status === 'fulfilled') this.setupAutocomplete();
   }
 
   private applyPluginCommands(defs: readonly PluginCommandDef[]): void {
@@ -1048,6 +1050,7 @@ export class KimiTUI {
   }
 
   private async finishStartup(shouldReplayHistory: boolean): Promise<void> {
+    this.pluginChromeController.start();
     if (this.startupNotice !== undefined) {
       this.showStatus(this.startupNotice);
       this.startupNotice = undefined;
@@ -1200,9 +1203,8 @@ export class KimiTUI {
         // shows the config defaults the engine would apply at createSession
         // time (model, permission, plan mode, thinking effort, context cap).
         await this.hydrateLazyConfigDefaults();
-        if (this.creationEnvironment?.environmentId !== undefined && this.creationEnvironment.environmentId !== 'local') {
-          // The remote session is created eagerly, so the session-less
-          // "No session yet" notice would contradict the live banner.
+        if ((this.creationEnvironment?.environmentId !== undefined && this.creationEnvironment.environmentId !== 'local') || await this.pluginChromeController.requiresSession()) {
+          // Remote environments and persistent plugin UI need a live session.
           void this.ensureSession();
         } else {
           this.appendStartupNotice(SESSIONLESS_STARTUP_NOTICE);
@@ -1262,6 +1264,8 @@ export class KimiTUI {
     // stop() returns (or leak when stop() runs without process.exit).
     this.tasksBrowserController.close();
     this.pluginPanesController.close();
+    this.pluginChromeController.dispose();
+    this.pluginGraphics.dispose();
     this.btwPanelController.clear();
     this.stopActivitySpinner();
     this.streamingUI.clearActiveCompaction();
@@ -1416,6 +1420,7 @@ export class KimiTUI {
     ui.addChild(this.state.queueContainer);
     ui.addChild(this.state.btwPanelContainer);
     ui.addChild(this.state.surveyContainer);
+    ui.addChild(this.state.pluginChromeContainer);
     ui.addChild(this.state.editorContainer);
     // Footer is mounted later (mountFooter), not here.
   }
@@ -1438,6 +1443,7 @@ export class KimiTUI {
     main.addChild(this.state.queueContainer);
     main.addChild(this.state.btwPanelContainer);
     main.addChild(this.state.surveyContainer);
+    main.addChild(this.state.pluginChromeContainer);
     main.addChild(this.state.editorContainer);
     const footerWrap = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
     footerWrap.addChild(this.state.footer);
@@ -3062,6 +3068,7 @@ export class KimiTUI {
     Object.assign(this.state.appState, patch);
     if ('planMode' in patch) this.updateEditorBorderHighlight();
     this.state.footer.setState(this.state.appState);
+    this.pluginChromeController?.refresh();
     this.updateActivityPane();
     if (busyChanged) {
       this.updateQueueDisplay();
@@ -3338,6 +3345,7 @@ export class KimiTUI {
     // before the engine's intake can read it.
     if (previous !== undefined) this.staging.releaseAll();
     this.session = session;
+    this.pluginChromeController.refresh();
     this.hasSessionHistory = true;
     this.surveyController.seedUserTurnCount(initialUserTurnCount);
     this.harness.setTelemetryContext({ sessionId: session.id });
@@ -4689,7 +4697,7 @@ export class KimiTUI {
   }
 
   openTasksBrowser(): void {
-    void this.tasksBrowserController.show();
+    void this.pluginPanesController.showSite('KimiTasks').then(placed => { if (!placed) void this.tasksBrowserController.show(); }).catch(error => this.showError(String(error)));
   }
 
   focusNotifyPanel(): boolean {

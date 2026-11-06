@@ -494,9 +494,84 @@ plugin hooks 复用与全局 hooks 相同的机制。事件列表、stdin JSON �
 
 仅安装 plugin 本身不会运行其 hooks；它们只在 plugin 启用期间、匹配的事件触发时运行。
 
+## 实验性运行时模块
+
+运行时插件可以处理引擎事件、注册命令和带 JSON Schema 的方法、运行原生子 Agent，并绘制交互面板。启动 Kimi Code CLI 前设置 `KIMI_CODE_EXPERIMENTAL_PLUGIN_RUNTIME=1`，然后在 `/plugins` 中启用插件。此功能需要 v2 引擎；未启用实验开关时，运行时模块不会加载。
+
+```json
+{
+  "name": "example-runtime",
+  "runtime": {
+    "modules": ["./runtime/index.ts"],
+    "capabilities": ["events", "state", "store", "ui", "command", "domains"]
+  }
+}
+```
+
+模块导出 `register(on)`。使用 `on(event, handler)` 注册中间件，`on.command(name, description, handler)` 注册斜杠命令，`on.domain(name, methods)` 注册包含输入及可选输出 JSON Schema 的方法。命令完整名称为 `/plugin-id:name`；没有歧义时也支持短名称。方法名称为 `plugin-id.domain.method`，可通过 `Plugin` 工具或 SDK 的 `session.plugins.call()` 调用。启用实验开关后，默认 main agent 会提供 `Plugin`；显式列出工具的自定义配置需要包含该工具。
+
+```ts
+import type { RuntimeRegistrar } from '@moonshot-ai/kimi-code-sdk/plugin';
+
+export function register(on: RuntimeRegistrar) {
+  on.command('panel', 'Open the example pane', async ($) => {
+    await $.ui.open({ id: 'example-runtime:panel', title: 'Example' });
+  });
+  on('ui.render', ($, event, next) => {
+    if (event.data.requestId !== 'example-runtime:panel') return next();
+    return { type: 'text', text: 'Hello from a plugin' };
+  });
+}
+```
+
+宿主 API 按声明的能力检查事件、日志、持久化存储、客户端视图状态、定时器、进程、原生 Agent、会话任务、命令、自定义域、隔离脚本和 UI 的访问。持久化更新为原子操作；`$.state` 在插件的 Agent 会话内共享，`$.view` 额外按客户端隔离 UI 选择状态。原生 Agent 必须明确指定已配置的 `[secondary_model.models]` 池中的模型别名，并保留引擎权限检查。禁用或重新加载插件会取消其定时器和后台任务。
+
+将 `runtime.api` 设为 `"claude-mods"` 可启用实验性 Claude Mods 配置。模块使用扁平事件参数、对象匹配器、`engine.create` 自定义 API，以及 `$.ui.resolve(e)` 提供的 `Box`、`Text`、`Button`、`Select` 和单行 `Input`。TSX 在加载时编译。`$.state.get({ plugin, key, id? })` 读取值和版本；仅所有者可写入，`set` 支持 `ifVersion`，并拒绝渲染期间的写入。Kimi 扩展位于 `$.kimi`。省略 `runtime.api` 时保留上述原生 API。
+
+Mods 可从 `claude-code` 导入 `atom`、`read` 和 `update` 来管理响应式状态。`atom` 定义冻结的地址和默认值；`read` 返回已存储的值，或在没有值时返回默认值，不执行写入。`update` 应用同步函数；若其他更新先写入，则通过版本检查重试写入。冲突会刷新读取快照以供重试。这些辅助函数保留所有者检查，以及禁止在渲染期间写入的限制。可选的 atom 结构标签让新代码将旧存储格式视为不存在。此功能不会启用尚未支持的渲染位置或元素。
+
+持久 Mods UI 现在通过 `AbovePrompt` 显示在编辑器上方，支持两种终端模式。`ui.status` 和会自动消失的 `ui.toast` 消息也显示在此处。按 `Ctrl+Shift+B` 将焦点移到插件控件，再使用 `Tab`、`Enter` 和 `Esc`。键盘焦点会显示 mod 通常在悬停时才显示的控件；仍然隐藏或已禁用的控件不会进入键盘导航。启用 UI 插件并配置模型后，会在第一条消息之前创建空会话，以便初始化控件，但不会启动模型轮次。没有启用 UI 插件时，仍延迟创建会话。适配器提供 `session.id/model/version/surfaces/usage`；用量包含原生上下文数据，以及通过已登录 Kimi 账户获取、缓存 30 秒的额度窗口。月度窗口使用 `monthly` 和 `monthly_code`；mod 可能忽略不认识的类型。不会编造缺失的账户额度、费用或详细上下文分类。Clawd 提供终端角色，Atelier 提供上下文和额度栏；需分别安装两个插件目录。
+
+若要启用 SVG 动画，还需设置 `KIMI_CODE_EXPERIMENTAL_PLUGIN_GRAPHICS=1` 并安装 Chrome 或 Chromium。图形模式可在编辑器上方和插件面板中播放原始 Clawd 场景；终端支持时使用图像，否则使用彩色字符单元，并保留可读标签和键盘控件。动画帧在 UI 内更新，不启动模型轮次。
+
+设置 `KIMI_CODE_PLUGIN_GRAPHICS=cells` 可强制使用彩色字符单元，设置为 `off` 可保留文本模式。必要时可将 `KIMI_CODE_PLUGIN_GRAPHICS_BROWSER` 设为浏览器可执行文件的绝对路径。渲染器使用临时配置目录，阻止 SVG 的外部资源请求，并保持浏览器沙箱启用；启动失败时会显示提示并回退到文本。自定义主题可通过 `canvasBackground` 设置画布背景。
+
+Mods 配置支持 `tool.register/list/call/check`、`agent.spawn/list/stop`、`prompt.compose` 和 `prompt.context`，分别由 `tools`、`agent` 和 `prompt` 能力控制。工具调用使用原生校验和权限流程；中间件不能覆盖拒绝规则，也不能自动批准需要审批的调用。`tool.describe`、`tool.check`、`tool.call`、`prompt.section`、`prompt.compose` 和 `prompt.context` hooks 会影响实际请求和执行。`agent.spawn` hooks 包装原生创建服务，涵盖内置 Agent 调用和分叉。这是受支持的兼容子集：Claude 模型、音频 API、Agent 定义和恢复 API、Client/光栅元素及通用渲染位置替换仍不可用。
+
+也可识别原始 Mods 打包格式：安装包含 `.claude-plugin/plugin.json` 和 `hooks/hooks.json` 的本地插件目录，后者通过 `modules` 数组声明模块。Kimi 会自动选择 Mods 适配器，并传入清单中 `userConfig` 的默认值。原始 mod 作为可信代码运行，可访问所有受支持的宿主命名空间。此功能导入 hook 模块，不转换 Claude `hooks/hooks.json` 中的传统 shell hooks。
+
+原始 Anthropic `agents-md` mod 已通过不修改源码的测试。其 `fs.ancestors`、`session.root/cwd` 和 `env.get` 调用使用当前环境及原生 Read 权限检查；原生清单需声明 `fs`、`session` 和 `env` 能力。嵌套指令在 Read 结果之后进入 Agent 上下文，按 Agent 去重，并由分叉继承。清空、压缩上下文或重新加载运行时后，会重新加载初始指令上下文。Kimi 现有的 `AGENTS.md` 加载器仍然启用。可在 `config.toml` 中覆盖 mod 选项：
+
+```toml
+[plugin_runtime.options."agents-md"]
+instructionFiles = "claude-md-and-agents-md"
+```
+
+其他可用值为 `claude-md-or-agents-md`（默认）、`claude-md` 和 `managed-only`。这些模式转换 Kimi 提供的指令集合，不会导入 Claude 的加载器或托管策略系统。修改选项后请重新加载插件。
+
+Mods hooks 可在注册期间附加一个 `.catch(handler)`。处理函数读取 `next.error` 和 `next.called`；其中的 `next(e)` 会复用已有的后续处理结果，或仅启动一次后续处理。失败的 hook 若未返回恢复结果，会继续传递原始事件，或保留已经产生的结果。普通 hook 有 10 秒自身运行时间，恢复处理函数有 1 秒；等待宿主 API 或 `next` 不消耗此预算。通过 `next.budget` 读取实时剩余时间，并向长时间操作传入 `next.signal`。过期的处理函数不能发起新的宿主调用或继续传递事件。这些定时器采用协作式机制，无法抢占可信 Node.js 代码中的同步无限循环。
+
+`next.origin` 在事件载荷之外标识调用方：引擎事件使用 `{ plugin: 'engine', tier: 'core' }`，插件 API 调用使用插件名称和 `user` 层级。mod 自己发起的 API 调用会跳过其 hooks；通过其他插件形成的循环也会受到保护。catch 可处理 `next.error.kind === 're-entry'`。已声明的后台任务和 `$.clock` 回调使用各自的执行帧。托管层级路由和 `sec-default` 兼容仍不可用。
+
+安装并启用 `packages/core-plugins/kimi-workflow` 和 `packages/core-plugins/kimi-workflow-ui` 后，运行 `/workflows`。模型会获得 `Workflow` 工具，通过当前会话的内部 Agent harness 运行工作节点。可选 UX 插件提供阶段/Agent 浏览器并替换 `/tasks`。禁用 UX 插件会恢复内置任务浏览器。旧的进程计划命令和待处理文件分发入口已移除。
+
+工作流是关联到发起工具调用的原生后台任务。最终结果通过常规任务通知送达；停止任务会取消其工作节点。指定结果 Schema 的工作节点通过 `StructuredOutput` 提交结果；无效结果在同一个 Agent 中修正，最多允许五次校验失败。增量日志可跨重启保留已完成结果，也能读取早期工作流快照。
+
+可选的 `tokenBudget` 在工作节点之间共享输出 token 目标。脚本可读取 `budget.total`、`budget.spent()` 和 `budget.remaining()`。宿主限制单次请求、统计已报告的用量，并在目标耗尽时停止运行。用量异步到达，因此已发出的并发请求仍可能超过目标；供应商未报告输出 token 用量时，设置了目标的运行会明确失败。`prefixStaggerMs` 在启动具有相同共享前缀的工作节点前，等待首个工作节点开始响应，默认最多等待 5000 ms；设为 0 可禁用等待。缓存是否可用仍取决于供应商。
+
+工作流流水线的各阶段接收 `(previousResult, originalItem, index)`。失败分支返回 `null` 并记录错误，其他项目继续执行；使用 `parallel(tasks, { failFast: true })` 或 `pipeline(items, stage1, stage2, { failFast: true })` 可在首次分支错误时停止运行。阶段元数据支持 `{ title, detail?, model }`，也保留先前的 `{ name, description?, model }` 格式，每个阶段都必须明确指定模型。请通过 `args` 传入时间戳和随机种子：工作流脚本无法读取隐式当前时间或调用 `Math.random()`，以便恢复运行时重放相同的调用。
+
+插件可通过 `runtime.tools` 暴露模型工具：它是 `{ name, description, method, inputSchema, isDeferred? }` 对象的数组，需要 `tools` 能力。`method` 是插件内的方法，例如 `workflow.run`；不能替换已有工具名称。动态 `tool.register` 贡献限定在会话内，并以 `mcp__plugin-id__name` 发布。工具调用保留 `Plugin(plugin-id.domain.method)` 权限规则，Agent 配置必须允许 `Plugin` 才会激活这些工具。
+
+使用 `/panes` 打开已注册的面板。`/workflows` 和插件任务视图通过与 `/model` 相同的对话框宿主打开在输入框位置，对话记录保持完整宽度。后台运行不会自动替换输入框。Tab/Shift-Tab 切换控件，方向键导航，Enter 激活，PgUp/PgDn 滚动长输出，Escape 取消对话框并恢复输入。关闭对话框不会取消后台任务。
+
+在全屏模式中，对已启动的工作流 Agent 按 Enter 可打开其原生对话记录，包括思考和工具结果。`Ctrl-O` 展开详情，Escape 返回工作流对话框。任务视图可停止所选原生任务。插件可从 UI 回调通过 `$.ui.view({ agentId })` 请求此对话记录；查看请求和选择状态均按客户端隔离。内联模式会提示使用全屏模式查看对话记录。
+
+运行时模块是以用户权限执行的受信任代码：能力检查约束宿主 API，不能限制任意 Node.js 导入。请仅安装可信模块。可选的脚本 API 使用独立的 QuickJS 解释器，通过 JSON 参数和显式宿主回调交互；脚本无法访问 Node.js 或插件闭包。内存和执行限制作用于脚本，不作用于受信任模块。原生 hook 错误会记录日志并放行；Mods hooks 可通过 `.catch` 恢复。命令和自定义域错误会返回给调用方。
+
 ## 安全模型
 
-Plugin 的加载范围有限，安装和运行时的安全边界如下：
+除上述实验性运行时外，Plugin 的加载边界如下：
 
 - 不会执行命令型 plugin tools 或旧式工具运行时
 - 所有路径在解析符号链接后仍必须位于 plugin 根目录内

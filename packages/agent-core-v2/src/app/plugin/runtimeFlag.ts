@@ -14,3 +14,13 @@ export const pluginRuntimeFlag: FlagDefinitionInput = {
 };
 
 registerFlagDefinition(pluginRuntimeFlag);
+
+export const PLUGIN_GRAPHICS_FLAG_ID = 'plugin_graphics';
+registerFlagDefinition({
+  id: PLUGIN_GRAPHICS_FLAG_ID,
+  title: 'Animated SVG plugin UI',
+  description: 'Render plugin SVG animations in the terminal with a local Chrome or Chromium renderer.',
+  env: 'KIMI_CODE_EXPERIMENTAL_PLUGIN_GRAPHICS',
+  default: false,
+  surface: 'core',
+});

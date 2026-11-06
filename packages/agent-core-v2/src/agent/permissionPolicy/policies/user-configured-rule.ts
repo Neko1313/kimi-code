@@ -54,7 +54,7 @@ function firstMatchingRule(
       rule,
       toolName: context.toolCall.name,
       execution: context.execution,
-    });
+    }) ?? (context.execution.permissionToolName === undefined ? undefined : matchPermissionRule({ rule, toolName: context.execution.permissionToolName, execution: context.execution }));
     if (match !== undefined) return match;
   }
   return undefined;

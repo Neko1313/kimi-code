@@ -11,6 +11,8 @@ import type { IAgentScopeHandle } from '#/_base/di/scope';
 import { IConfigService } from '#/app/config/config';
 import { IBootstrapService } from '#/app/bootstrap/bootstrap';
 import { IFlagService } from '#/app/flag/flag';
+import { IPluginRuntimeHost } from '#/app/plugin/runtime';
+import { stubRuntimeHost } from '../../features/externalHooks/runner-stub';
 import { ILogService } from '#/_base/log/log';
 import {
   normalizeAgentProfile,
@@ -256,7 +258,8 @@ describe('SessionSubagentService planSpawn and spawn', () => {
     disposables.dispose();
   });
 
-  function service(configValues: Record<string, unknown> = {}): ISessionSubagentService {
+  function service(configValues: Record<string, unknown> = {}, runtime = stubRuntimeHost()): ISessionSubagentService {
+    ix.stub(IPluginRuntimeHost, runtime);
     ix.stub(IConfigService, new StubConfigService(configValues));
     ix.set(ISessionSubagentService, new SyncDescriptor(SessionSubagentService));
     return ix.get(ISessionSubagentService);
@@ -305,6 +308,14 @@ describe('SessionSubagentService planSpawn and spawn', () => {
       prompt: 'Continue the analysis',
     });
   }
+
+  it('preserves the resolved model source and thinking when an observing mod delegates', async () => {
+    const observed: Record<string, unknown>[] = [];
+    const runtime = stubRuntimeHost({ hasHandlers: event => event === 'agent.spawn', invoke: async (_event, input, _context, terminal) => { observed.push(input); return terminal(input); } });
+    const spawned = await spawnNonForkChild(service({}, runtime));
+    expect(spawned).toMatchObject({ model: 'provider/fast', modelSource: 'secondary_pool' });
+    expect(observed[0]).toMatchObject({ model: 'provider/fast', background: false, fork: false });
+  });
 
   it('rejects an unknown subagent type', async () => {
     const svc = service();

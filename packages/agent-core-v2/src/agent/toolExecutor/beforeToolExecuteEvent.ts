@@ -21,6 +21,7 @@ export function denyToolExecution(reason: string): ExecutableToolResult {
 }
 
 export class BeforeToolExecuteEventImpl implements BeforeToolExecuteEvent {
+  readonly origin?: 'plugin';
   readonly turnId: number;
   readonly signal: AbortSignal;
   readonly trace?: LLMRequestTrace;
@@ -37,6 +38,7 @@ export class BeforeToolExecuteEventImpl implements BeforeToolExecuteEvent {
   private _open = true;
 
   constructor(context: ResolvedToolExecutionHookContext) {
+    this.origin = context.origin;
     this.turnId = context.turnId;
     this.signal = context.signal;
     this.trace = context.trace;

@@ -54,6 +54,7 @@ export interface TUIState {
   queuePane: QueuePaneComponent;
   btwPanelContainer: Container;
   surveyContainer: Container;
+  pluginChromeContainer: Container;
   editorContainer: Container;
   /**
    * Fullscreen mode only: the bottom dock (activity/todo/notify/queue/btw/editor +
@@ -166,6 +167,7 @@ export function createTUIState(options: KimiTUIOptions): TUIState {
   );
   const btwPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const surveyContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
+  const pluginChromeContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editorContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editor = new CustomEditor(ui, {
     disablePasteBurst: initialAppState.disablePasteBurst ?? DEFAULT_TUI_CONFIG.disablePasteBurst,
@@ -194,6 +196,7 @@ export function createTUIState(options: KimiTUIOptions): TUIState {
     dockContainer.addChild(queueContainer, { shrink: 1, minSize: 0, visible: unlessBlocked });
     dockContainer.addChild(btwPanelContainer, { shrink: 1, minSize: 0, visible: unlessBlocked });
     dockContainer.addChild(surveyContainer, { shrink: 0, minSize: 0 });
+    dockContainer.addChild(pluginChromeContainer, { shrink: 1, minSize: 0, visible: unlessBlocked });
     editorSlot = new VStack();
     editorSlot.addChild(editorContainer, EDITOR_SLOT_ENTRY);
     dockContainer.addChild(editorSlot, EDITOR_SLOT_ENTRY);
@@ -217,6 +220,7 @@ export function createTUIState(options: KimiTUIOptions): TUIState {
     queuePane,
     btwPanelContainer,
     surveyContainer,
+    pluginChromeContainer,
     editorContainer,
     dockContainer,
     editorSlot,

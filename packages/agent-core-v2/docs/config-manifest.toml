@@ -8,7 +8,7 @@
 # commented "# field: type" lines describe the remaining schema fields.
 # Values resolve as: default -> config.toml -> env overlay -> memory.
 
-# Index (31 sections · 2 overlay(s))
+# Index (32 sections · 2 overlay(s))
 #   background               src/agent/task/configSection.ts
 #   builtinProductSkills     src/features/skill/catalog/configSection.ts
 #   cron                     src/features/cron/configSection.ts
@@ -28,6 +28,7 @@
 #   modelCatalog             src/app/kosongConfig/configSection.ts
 #   models                   src/app/kosongConfig/configSection.ts
 #   permission               src/agent/permissionRules/configSection.ts
+#   pluginRuntime            src/app/plugin/runtimeConfig.ts
 #   providers                src/app/kosongConfig/configSection.ts
 #   read                     src/agent/tools/os/read/configSection.ts
 #   secondaryModel           src/session/subagent/configSection.ts
@@ -338,6 +339,16 @@ merge_all_available_skills = true
   # pattern: string
   # reason: string
 # dangerous_command_guard: boolean
+
+# ##########################################################################
+# pluginRuntime (config.toml: plugin_runtime)
+#   owner: src/app/plugin/runtimeConfig.ts
+#   scope: core
+#   hooks: custom fromToml
+# ##########################################################################
+
+[plugin_runtime]
+options = {  }
 
 # ##########################################################################
 # providers

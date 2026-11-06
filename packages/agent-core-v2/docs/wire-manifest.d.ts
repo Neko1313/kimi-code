@@ -119,6 +119,7 @@ interface ChangeNotifierSnapshotPayload {
  */
 interface ConfigUpdatePayload {
   _name: 'config.update';
+  instructionPrompt?: instructionPromptSchema;
   agentId: string;
   modelAlias?: string;
   profileName?: string;
@@ -577,6 +578,7 @@ interface PluginSessionStartPayload {
  */
 interface ProfileBindPayload {
   _name: 'profile.bind';
+  instructionPrompt?: instructionPromptSchema;
   agentId: string;
   modelAlias?: string;
   profileName?: string;

@@ -384,6 +384,10 @@ export class KimiHarness {
     return this.rpc.listPluginCommandsGlobal();
   }
 
+  async listRuntimeCommands(): Promise<readonly import('#/plugin-runtime').RuntimeCommand[]> {
+    return this.rpc.listRuntimeCommandsGlobal();
+  }
+
   /**
    * App-global plugin management, no session required. The v2 engine keeps
    * plugin state app-global (these calls are routed through the klient

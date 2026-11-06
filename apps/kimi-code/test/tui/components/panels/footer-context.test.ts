@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import chalk from 'chalk';
 
 import { FooterComponent, formatFooterGitBadge, buildWeightedTips } from '#/tui/components/chrome/footer';
+import { ModsTree } from '#/tui/components/dialogs/mods-tree';
 import { darkColors } from '#/tui/theme/colors';
 import type { AppState } from '#/tui/types';
 
@@ -44,6 +45,23 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
 }
 
 describe('FooterComponent — context NaN resilience', () => {
+  it('uses a plugin context component and restores the native counter', () => {
+    const fc = new FooterComponent(baseState({ contextTokens: 20, maxContextTokens: 100 }));
+    fc.setContextOverride({ render: () => ['custom context'], invalidate: () => {} });
+    expect(strip(fc.render(120).join(''))).toContain('custom context');
+    fc.setContextOverride(undefined);
+    expect(strip(fc.render(120).join(''))).toContain('context: 20%');
+  });
+
+  it('lets a plugin hide the counter without affecting other footer content', () => {
+    const fc = new FooterComponent(baseState({ contextTokens: 20, maxContextTokens: 100 }));
+    fc.setContextOverride(new ModsTree({ type: 'Text', children: [] }, () => {}, () => 1));
+    const hidden = strip(fc.render(120).join(''));
+    expect(hidden).not.toContain('context:');
+    expect(hidden).toContain('k2');
+    fc.setContextOverride(undefined);
+    expect(strip(fc.render(120).join(''))).toContain('context: 20%');
+  });
   it('NaN usage → renders 0% (never literal "NaN%")', () => {
     const fc = new FooterComponent(baseState({ contextUsage: Number.NaN }));
     const out = strip(fc.render(120).join(''));

@@ -17,6 +17,50 @@ describe('plugin manifest parser', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  it('loads Claude hook modules and user options with native manifest precedence', async () => {
+    await mkdir(join(dir, '.claude-plugin'));
+    await mkdir(join(dir, 'hooks'));
+    await writeFile(join(dir, '.claude-plugin/plugin.json'), JSON.stringify({ name: 'portable', userConfig: { mode: { type: 'string', default: 'both', options: ['both', 'managed'] } } }));
+    await writeFile(join(dir, 'hooks/hooks.json'), JSON.stringify({ modules: ['./register.ts'] }));
+    const parsed = await parseManifest(dir);
+    expect(parsed.manifestKind).toBe('claude-plugin-dir');
+    expect(parsed.manifest?.runtime).toMatchObject({ api: 'claude-mods', modules: ['./hooks/register.ts'], options: { mode: 'both' }, optionSchema: { properties: { mode: { type: 'string', enum: ['both', 'managed'] } }, additionalProperties: false } });
+    expect(parsed.diagnostics).toEqual([]);
+    await writeFile(join(dir, 'kimi.plugin.json'), JSON.stringify({ name: 'native' }));
+    const native = await parseManifest(dir);
+    expect(native.manifest?.name).toBe('native');
+    expect(native.manifest?.runtime).toBeUndefined();
+    await writeFile(join(dir, 'hooks/hooks.json'), JSON.stringify({ hooks: { Stop: [] }, modules: ['./register.ts'] }));
+    await rm(join(dir, 'kimi.plugin.json'));
+    expect((await parseManifest(dir)).diagnostics).toContainEqual(expect.objectContaining({ severity: 'warn', message: expect.stringContaining('Classic hooks') }));
+  });
+
+  it('refuses Claude module paths that escape the plugin and malformed option types', async () => {
+    await mkdir(join(dir, '.claude-plugin'));
+    await mkdir(join(dir, 'hooks'));
+    await writeFile(join(dir, '.claude-plugin/plugin.json'), JSON.stringify({ name: 'portable' }));
+    for (const module of ['../../outside.ts', '/outside.ts']) {
+      await writeFile(join(dir, 'hooks/hooks.json'), JSON.stringify({ modules: [module] }));
+      const parsed = await parseManifest(dir);
+      expect(parsed.manifest?.runtime).toBeUndefined();
+      expect(parsed.diagnostics).toContainEqual(expect.objectContaining({ severity: 'error', message: expect.stringContaining('Invalid Claude hook module configuration') }));
+    }
+    await writeFile(join(dir, 'hooks/hooks.json'), JSON.stringify({ modules: ['./register.ts'] }));
+    await writeFile(join(dir, '.claude-plugin/plugin.json'), JSON.stringify({ name: 'portable', userConfig: { secret: { type: 'unsupported' } } }));
+    expect((await parseManifest(dir)).diagnostics).toContainEqual(expect.objectContaining({ severity: 'error', message: expect.stringContaining('Unsupported plugin option') }));
+  });
+
+  it('loads native plugin tools and refuses missing capability or duplicate names', async () => {
+    const tool = { name: 'ExampleWorkflow', description: 'Run native workers', method: 'workflow.run', inputSchema: { type: 'object' } };
+    const write = async (capabilities: string[], tools: unknown[]) => writeFile(join(dir, 'kimi.plugin.json'), JSON.stringify({ name: 'example', runtime: { modules: ['./runtime.ts'], capabilities, tools } }));
+    await write(['tools'], [tool]);
+    expect((await parseManifest(dir)).manifest?.runtime?.tools).toEqual([tool]);
+    await write([], [tool]);
+    expect((await parseManifest(dir)).diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ severity: 'error', message: expect.stringContaining('tools capability') })]));
+    await write(['tools'], [tool, tool]);
+    expect((await parseManifest(dir)).diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ severity: 'error', message: expect.stringContaining('Invalid runtime tool') })]));
+  });
+
   it('reads recursive command entries and valid hooks', async () => {
     await mkdir(join(dir, 'commands', 'frontend'), { recursive: true });
     await writeFile(join(dir, 'commands', 'frontend', 'component.md'), '# Component', 'utf8');

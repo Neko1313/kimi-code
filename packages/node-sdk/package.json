@@ -41,6 +41,10 @@
     "./ssh-askpass": {
       "types": "./src/ssh-askpass.ts",
       "default": "./src/ssh-askpass.ts"
+    },
+    "./plugin": {
+      "types": "./src/plugin.ts",
+      "default": "./src/plugin.ts"
     }
   },
   "publishConfig": {
@@ -50,6 +54,11 @@
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs",
         "default": "./dist/index.mjs"
+      },
+      "./plugin": {
+        "types": "./dist/plugin.d.mts",
+        "import": "./dist/plugin.mjs",
+        "default": "./dist/plugin.mjs"
       }
     },
     "provenance": true
@@ -62,6 +71,7 @@
   },
   "dependencies": {
     "@antfu/utils": "^9.3.0",
+    "esbuild": "^0.25.12",
     "smol-toml": "^1.6.1",
     "yazl": "^3.3.1",
     "zod": "^4.3.6"

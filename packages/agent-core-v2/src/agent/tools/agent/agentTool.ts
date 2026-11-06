@@ -340,6 +340,8 @@ export class SubagentTool implements ISubagentTool {
         fork: args.fork === true,
       });
       const spawned = await this.subagents.spawn({
+        toolCallId,
+        background: args.run_in_background === true,
         callerAgentId: this.callerAgentId,
         plan,
         labels: subagentLabels(this.callerAgentId),

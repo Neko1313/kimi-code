@@ -20,6 +20,8 @@ import {
 } from '@moonshot-ai/agent-core-v2/app/auth/auth';
 import { IFlagService } from '@moonshot-ai/agent-core-v2/app/flag/flag';
 import { IPluginService } from '@moonshot-ai/agent-core-v2/app/plugin/plugin';
+import { IAgentPluginRuntime } from '@moonshot-ai/agent-core-v2/app/plugin/agentRuntime';
+import { IPluginRuntimeHost } from '@moonshot-ai/agent-core-v2/app/plugin/runtime';
 import { ICapabilityService } from '@moonshot-ai/agent-core-v2/app/capability/capability';
 import { IBootstrapService } from '@moonshot-ai/agent-core-v2/app/bootstrap/bootstrap';
 import { IEventService } from '@moonshot-ai/agent-core-v2/app/event/event';
@@ -61,6 +63,8 @@ export const serviceTokens: Readonly<Record<string, ServiceIdentifier<unknown>>>
   authSummaryService: IAuthSummaryService,
   flagService: IFlagService,
   pluginService: IPluginService,
+  agentPluginRuntime: IAgentPluginRuntime,
+  pluginRuntimeHost: IPluginRuntimeHost,
   capabilityService: ICapabilityService,
   hostFolderBrowser: IHostFolderBrowser,
   bootstrapService: IBootstrapService,

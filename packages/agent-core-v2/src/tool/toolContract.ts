@@ -86,6 +86,7 @@ export interface RunnableToolExecution {
   readonly description?: string;
   readonly stopBatchAfterThis?: boolean | undefined;
   readonly approvalRule: string;
+  readonly permissionToolName?: string;
   readonly matchesRule?: ((ruleArgs: string) => boolean) | undefined;
   readonly execute: (ctx: ExecutableToolContext) => Promise<ExecutableToolResult>;
 }
@@ -117,6 +118,7 @@ export interface AgentTool<Input = unknown> extends ExecutableTool<Input> {
 }
 
 export type ToolResult = ExecutableToolResult & {
+  readonly context?: readonly string[];
   readonly description?: string;
   readonly display?: ToolInputDisplay;
   readonly approvalRule?: string;

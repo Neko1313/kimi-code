@@ -1813,6 +1813,18 @@ export interface AgentStateSnapshot {
   // src/agent/profile/profileOps.ts
   // replayable · durable — folds: ProfileBind, ConfigUpdate
   'profile': /* ProfileModelState — packages/agent-core-v2/src/agent/profile/profileOps.ts */ {
+    readonly instructionPrompt?: {
+      files: readonly {
+        path: string;
+        kind: 'project' | 'user' | 'managed' | 'local' | 'memory';
+        content: string;
+        parent?: string;
+        isUnverified?: true;
+      }[];
+      prefix: string;
+      suffix: string;
+      empty: string;
+    };
     readonly modelAlias?: string;
     readonly profileName?: string;
     readonly thinkingLevel: string;
@@ -1856,6 +1868,7 @@ export interface AgentStateSnapshot {
     readonly agentId?: string;
     readonly subagentType?: string;
     readonly parentToolCallId?: string;
+    readonly parentRunId?: string;
     readonly model?: string;
     readonly thinkingEffort?: string;
     readonly stopCode?: string;
@@ -1877,6 +1890,21 @@ export interface AgentStateSnapshot {
     readonly command: string;
     readonly pid: number;
     readonly exitCode: number | null;
+    readonly parentToolCallId?: string;
+    readonly taskId: string;
+    readonly description: string;
+    readonly status: /* AgentTaskStatus — packages/agent-core-v2/src/agent/task/types.ts */ 'completed' | 'failed' | 'running' | 'timed_out' | 'killed' | 'lost';
+    readonly detached?: boolean;
+    readonly startedAt: number;
+    readonly endedAt: number | null;
+    readonly stopReason?: string;
+    readonly terminalNotificationSuppressed?: boolean;
+    readonly resumeReminded?: boolean;
+    readonly timeoutMs?: number;
+  } | /* RuntimeTaskInfo — packages/agent-core-v2/src/app/plugin/runtimeTask.ts */ {
+    readonly kind: 'plugin';
+    readonly pluginId: string;
+    readonly runId: string;
     readonly parentToolCallId?: string;
     readonly taskId: string;
     readonly description: string;
@@ -1911,6 +1939,7 @@ export interface AgentStateSnapshot {
     readonly agentId?: string;
     readonly subagentType?: string;
     readonly parentToolCallId?: string;
+    readonly parentRunId?: string;
     readonly model?: string;
     readonly thinkingEffort?: string;
     readonly stopCode?: string;
@@ -1932,6 +1961,21 @@ export interface AgentStateSnapshot {
     readonly command: string;
     readonly pid: number;
     readonly exitCode: number | null;
+    readonly parentToolCallId?: string;
+    readonly taskId: string;
+    readonly description: string;
+    readonly status: /* AgentTaskStatus — packages/agent-core-v2/src/agent/task/types.ts */ 'completed' | 'failed' | 'running' | 'timed_out' | 'killed' | 'lost';
+    readonly detached?: boolean;
+    readonly startedAt: number;
+    readonly endedAt: number | null;
+    readonly stopReason?: string;
+    readonly terminalNotificationSuppressed?: boolean;
+    readonly resumeReminded?: boolean;
+    readonly timeoutMs?: number;
+  } | /* RuntimeTaskInfo — packages/agent-core-v2/src/app/plugin/runtimeTask.ts */ {
+    readonly kind: 'plugin';
+    readonly pluginId: string;
+    readonly runId: string;
     readonly parentToolCallId?: string;
     readonly taskId: string;
     readonly description: string;

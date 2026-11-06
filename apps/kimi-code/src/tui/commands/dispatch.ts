@@ -46,6 +46,7 @@ import { handleGoalCommand } from './goal';
 import { handleImportSessionsCommand } from './import-sessions';
 import { handleFeedbackCommand, showMcpServers, showStatusReport, showUsage } from './info';
 import { handleAddDirCommand } from './add-dir';
+import { isExperimentalFlagEnabled } from './experimental-flags';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from './plugins';
 import { handleProviderCommand } from './provider';
@@ -311,11 +312,20 @@ async function executeSlashCommand(
       return;
     }
     case 'message':
-      // Unknown slash command: let /dance claim it before it falls through to
-      // the model as a normal message. This runs *after* builtin and skill
-      // resolution, so a real command or a same-named skill always wins.
-      if (parsedCommand !== null && tryHandleDanceCommand(host, parsedCommand)) {
-        return;
+      if (parsedCommand !== null && tryHandleDanceCommand(host, parsedCommand)) return;
+      if (parsedCommand !== null && isExperimentalFlagEnabled('plugin_runtime')) {
+        const session = host.session ?? await ensureSessionForCommand(host);
+        if (session !== undefined) {
+          try {
+            const commands = await session.plugins.listCommands();
+            const matches = commands.filter((command) => command.name === parsedCommand.name || command.name.split(':').at(-1) === parsedCommand.name);
+            if (matches.length === 1) {
+              await host.pluginPanesController.show(matches[0]!.name, parsedCommand.args);
+              return;
+            }
+            if (matches.length > 1) { host.showError('Ambiguous plugin command; use its plugin:name form.'); return; }
+          } catch (error) { host.showError(formatErrorMessage(error)); return; }
+        }
       }
       host.sendNormalUserInput(intent.input);
       return;
@@ -362,6 +372,7 @@ const SESSION_REQUIRING_COMMANDS: ReadonlySet<BuiltinSlashCommandName> = new Set
   'goal',
   'init',
   'plan',
+  'panes',
   'swarm',
   'undo',
   'web',
@@ -444,7 +455,7 @@ async function handleBuiltInSlashCommand(
       void host.showSessionPicker();
       return;
     case 'tasks':
-      void host.tasksBrowserController.show();
+      void host.pluginPanesController.showSite('KimiTasks').then(placed => { if (!placed) void host.tasksBrowserController.show(); }).catch(error => host.showError(String(error)));
       return;
     case 'panes':
       void host.pluginPanesController.show();

@@ -12,6 +12,7 @@ import type { ErrorCode } from '#/errors';
 import { Error2 } from '#/_base/errors/errors';
 
 import { ProfileErrors } from './errors';
+import type { InstructionPrompt } from './instructionFile';
 
 export { ProfileErrors } from './errors';
 
@@ -47,6 +48,7 @@ export interface SystemPromptContext extends AgentProfileContext {
 export type ResolvedAgentProfile = AgentProfile;
 
 export interface ProfileData extends AgentConfigData {
+  readonly instructionPrompt?: InstructionPrompt;
   readonly agentsMdPaths?: readonly string[];
   readonly activeToolNames?: readonly string[];
   readonly disallowedTools?: readonly string[];
@@ -56,6 +58,7 @@ export interface ProfileData extends AgentConfigData {
 }
 
 export type ProfileUpdateData = Partial<{
+  instructionPrompt: InstructionPrompt;
   modelAlias: string;
   profileName: string;
   thinkingLevel: string;
@@ -67,6 +70,7 @@ export type ProfileUpdateData = Partial<{
 }>;
 
 export interface ProfileBindingSnapshot {
+  readonly instructionPrompt?: InstructionPrompt;
   readonly modelAlias?: string;
   readonly profileName?: string;
   readonly thinkingLevel: string;

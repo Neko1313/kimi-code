@@ -36,7 +36,7 @@ import { flagsContract } from './global/flags.js';
 import { hostFsContract } from './global/hostFs.js';
 import { modelsContract } from './global/models.js';
 import { mcpManagementContract } from './global/mcpManagement.js';
-import { pluginsContract } from './global/plugins.js';
+import { pluginsContract, pluginRuntimeCatalogContract } from './global/plugins.js';
 import { providersContract } from './global/providers.js';
 import { sessionsContract } from './global/sessions.js';
 import { workspacesContract } from './global/workspaces.js';
@@ -48,6 +48,7 @@ import { sessionMetadataContract } from './session/metadata.js';
 import { sessionQuestionContract } from './session/question.js';
 import { sessionSkillCatalogContract } from './session/skills.js';
 import { sessionTitleContract } from './session/title.js';
+import { pluginRuntimeContract } from './agent/plugins.js';
 
 export const globalContract: KlientContract = {
   // core (app scope)
@@ -63,6 +64,7 @@ export const globalContract: KlientContract = {
   authSummaryService: authSummaryContract,
   flagService: flagsContract,
   pluginService: pluginsContract,
+  pluginRuntimeHost: pluginRuntimeCatalogContract,
   capabilityService: capabilitiesContract,
   hostFolderBrowser: hostFsContract,
   bootstrapService: envContract,
@@ -83,6 +85,7 @@ export const globalContract: KlientContract = {
   agentLoopService: agentLoopContract,
   agentPermissionModeService: agentPermissionModeContract,
   agentCommandService: agentCommandContract,
+  agentPluginRuntime: pluginRuntimeContract,
   agentEnvironmentBindingService: agentEnvironmentBindingContract,
   agentContextMemoryService: agentContextMemoryContract,
   agentTokenCountingService: agentTokenCountingContract,

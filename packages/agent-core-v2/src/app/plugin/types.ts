@@ -123,7 +123,7 @@ export interface PluginCommandEntry {
   readonly name: string;
 }
 
-export type PluginManifestKind = 'kimi-plugin-root' | 'kimi-plugin-dir';
+export type PluginManifestKind = 'kimi-plugin-root' | 'kimi-plugin-dir' | 'claude-plugin-dir';
 export type PluginSource = 'local-path' | 'zip-url' | 'github';
 export type PluginOrigin = 'marketplace' | 'custom' | 'unknown';
 export type PluginState = 'ok' | 'error';

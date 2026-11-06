@@ -67,6 +67,7 @@ Only set tokens from this set — unknown keys are silently ignored at load. If 
 | `textStrong` | Emphasized / bold text: input dialogs, status messages |
 | `textDim` | Secondary, dimmed text (the most widely used dim shade): thinking, hints, descriptions, completed todos, Markdown quotes, footer status bar |
 | `textMuted` | Faintest text: counters, scroll info, descriptions, Markdown link URLs, code-block borders |
+| `canvasBackground` | Plugin SVG canvas background |
 | `border` | Pane and editor borders, Markdown horizontal rule |
 | `borderFocus` | Focus / attention border (currently only the approval panel) |
 | `success` | Success state: `✓`, "enabled", completed |

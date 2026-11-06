@@ -56,6 +56,8 @@ export interface SubagentSpawnPlan {
 }
 
 export interface SpawnSubagentOptions {
+  readonly toolCallId?: string;
+  readonly background?: boolean;
   readonly callerAgentId: string;
   readonly plan: SubagentSpawnPlan;
   readonly labels?: Readonly<Record<string, string>>;

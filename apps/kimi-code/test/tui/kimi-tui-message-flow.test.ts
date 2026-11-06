@@ -2699,7 +2699,7 @@ command = "vim"
     expect(harness.auth.submitFeedback).not.toHaveBeenCalled();
     const transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain("You're not signed in");
-    expect(transcript).toContain('https://www.kimi.com/code');
+    expect(transcript).toContain('https://www.kimi.ai/code');
     expect(transcript).toContain('https://github.com/MoonshotAI/kimi-code/issues');
   });
 
@@ -9285,8 +9285,11 @@ capabilities = ["image_in", "video_in"]
     const transcript = stripSgr(renderTranscript(driver));
     const panel = stripSgr(renderBtwPanel(driver));
     const rootChildren = driver.state.ui.children;
-    expect(rootChildren.indexOf(driver.state.surveyContainer)).toBe(
+    expect(rootChildren.indexOf(driver.state.pluginChromeContainer)).toBe(
       rootChildren.indexOf(driver.state.editorContainer) - 1,
+    );
+    expect(rootChildren.indexOf(driver.state.surveyContainer)).toBe(
+      rootChildren.indexOf(driver.state.pluginChromeContainer) - 1,
     );
     expect(rootChildren.indexOf(driver.state.btwPanelContainer)).toBe(
       rootChildren.indexOf(driver.state.surveyContainer) - 1,

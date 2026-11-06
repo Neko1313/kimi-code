@@ -27,6 +27,7 @@ const AGENT_TOOLS = [
   'Skill',
   'WebSearch',
   'Agent',
+  'Plugin',
   'AgentSwarm',
   'FetchURL',
   'AskUserQuestion',

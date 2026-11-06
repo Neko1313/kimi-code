@@ -1,4 +1,5 @@
 import { toDisposable } from '#/_base/di/lifecycle';
+import { createControlledPromise } from '@antfu/utils';
 import { LifecycleScope } from '#/app/scopes';
 import { ScopeActivation, registerScopedService } from '#/_base/di/scope';
 import { AsyncEmitter, type Event } from '#/_base/event';
@@ -123,6 +124,13 @@ export class AgentToolExecutorService implements IAgentToolExecutorService {
   private missingToolDescriber: MissingToolDescriber | undefined;
   private unavailableToolDescriber: UnavailableToolDescriber | undefined;
   private toolCallGuard: ToolCallGuard | undefined;
+  private callMiddleware: { run: import('./toolExecutor').ToolCallMiddleware; enabled: () => boolean } | undefined;
+
+  registerCallMiddleware(run: import('./toolExecutor').ToolCallMiddleware, enabled: () => boolean) {
+    const entry = { run, enabled };
+    this.callMiddleware = entry;
+    return toDisposable(() => { if (this.callMiddleware === entry) this.callMiddleware = undefined; });
+  }
 
   recordDupType(toolCallId: string, dupType: ToolCallDupType): void {
     this.toolCallDupTypes.set(toolCallId, dupType);
@@ -179,6 +187,56 @@ export class AgentToolExecutorService implements IAgentToolExecutorService {
     calls: ToolCall[],
     options: ToolExecutorExecuteOptions,
   ): AsyncIterable<ToolExecutionResult> {
+    if (this.callMiddleware?.enabled()) {
+      const middleware = this.callMiddleware;
+      const frames = calls.map(call => {
+        const ready = createControlledPromise<ToolCall | undefined>();
+        const completed = createControlledPromise<ToolExecutionResult>();
+        let called = false;
+        const result = Promise.resolve().then(() => middleware.run(call, options, async rewritten => {
+          if (rewritten.id !== call.id) throw new Error('Tool middleware cannot change the call id');
+          if (called) {
+            for await (const result of this.executeCalls([rewritten], { ...options, origin: 'plugin', deferResult: true, deferStarted: true })) return result;
+            throw new Error('Retried tool did not return a result');
+          }
+          called = true;
+          ready.resolve(rewritten);
+          return completed;
+        })).then(result => { ready.resolve(undefined); return result; }, (error: unknown): ToolExecutionResult => {
+          ready.resolve(undefined);
+          return { toolCallId: call.id, toolName: call.name, durationMs: 0, result: { isError: true, output: errorMessage(error) } };
+        });
+        return { call, ready, completed, result };
+      });
+      const rewritten = await Promise.all(frames.map(frame => frame.ready));
+      const byId = new Map(frames.map(frame => [frame.call.id, frame]));
+      const settled = new Set<string>();
+      try {
+        for (const [index, frame] of frames.entries()) {
+          if (rewritten[index] !== undefined) continue;
+          const result = await frame.result;
+          const reference = { toolCall: frame.call, toolName: frame.call.name };
+          this.dispatchToolCall(reference, frame.call.arguments, options);
+          this.dispatchToolResult(reference, result.result, options);
+          yield result;
+        }
+        for await (const core of this.executeCalls(rewritten.filter((call): call is ToolCall => call !== undefined), { ...options, deferResult: true })) {
+          const frame = byId.get(core.toolCallId)!;
+          settled.add(core.toolCallId);
+          frame.completed.resolve(core);
+          const result = await frame.result;
+          this.dispatchToolResult({ toolCall: frame.call, toolName: result.toolName }, result.result, options);
+          yield result;
+        }
+      } finally {
+        for (const [index, frame] of frames.entries()) if (rewritten[index] !== undefined && !settled.has(frame.call.id)) frame.completed.reject(new Error('Tool execution ended'));
+      }
+      return;
+    }
+    yield* this.executeCalls(calls, options);
+  }
+
+  private async *executeCalls(calls: ToolCall[], options: ToolExecutorExecuteOptions): AsyncIterable<ToolExecutionResult> {
     if (calls.length === 0) return;
     if (options.turnId !== this.dupTypeTurnId) {
       this.dupTypeTurnId = options.turnId;
@@ -571,11 +629,12 @@ export class AgentToolExecutorService implements IAgentToolExecutorService {
   }
 
   private dispatchToolCall(
-    call: PreflightedToolCall,
+    call: Pick<PreflightedToolCall, 'toolCall' | 'toolName'>,
     args: unknown,
     options: ToolExecutorExecuteOptions,
     displayFields?: ToolCallDisplayFields,
   ): void {
+    if (options.deferStarted) return;
     void this.dispatcher.dispatch(
       new ToolCallStarted({
         agentId: this.scopeContext.agentId,
@@ -596,10 +655,11 @@ export class AgentToolExecutorService implements IAgentToolExecutorService {
   }
 
   private dispatchToolResult(
-    call: PreflightedToolCall,
+    call: Pick<PreflightedToolCall, 'toolCall' | 'toolName'>,
     result: ToolResult,
     options: ToolExecutorExecuteOptions,
   ): void {
+    if (options.deferResult) return;
     void this.dispatcher.dispatch(
       new ToolResultEvent({
         agentId: this.scopeContext.agentId,
@@ -634,6 +694,7 @@ export class AgentToolExecutorService implements IAgentToolExecutorService {
     resolvedAccesses?: ToolAccesses,
   ): Promise<ToolResult> {
     const didCtx: ToolDidExecuteContext = {
+      origin: options.origin,
       turnId: options.turnId,
       signal: options.signal,
       trace: options.trace,
@@ -719,6 +780,7 @@ function buildBeforeExecuteContext(
   options: ToolExecutorExecuteOptions,
 ): ResolvedToolExecutionHookContext {
   return {
+    origin: options.origin,
     turnId: options.turnId,
     signal: options.signal,
     trace: options.trace,

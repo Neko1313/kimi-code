@@ -13,10 +13,11 @@ import {
   type PluginManifest,
   type PluginManifestKind,
 } from './types';
-import { RUNTIME_CAPABILITIES, type RuntimeCapability } from './runtime';
+import { RUNTIME_CAPABILITIES, type RuntimeCapability, type RuntimeToolDefinition } from './runtime';
 
 const KIMI_PLUGIN_ROOT_PATH = 'kimi.plugin.json';
 const KIMI_PLUGIN_DIR_PATH = '.kimi-plugin/plugin.json';
+const CLAUDE_PLUGIN_DIR_PATH = '.claude-plugin/plugin.json';
 
 export const PLUGIN_SYSTEM_PROMPT_MAX_BYTES = 32 * 1024;
 
@@ -43,20 +44,22 @@ export async function parseManifest(pluginRoot: string): Promise<ParsedManifestR
   const dirJsonPath = path.join(pluginRoot, KIMI_PLUGIN_DIR_PATH);
   const rootJsonExists = await isFile(rootJsonPath);
   const dirJsonExists = await isFile(dirJsonPath);
+  const claudeJsonPath = path.join(pluginRoot, CLAUDE_PLUGIN_DIR_PATH);
+  const claudeJsonExists = await isFile(claudeJsonPath);
 
-  if (!rootJsonExists && !dirJsonExists) {
+  if (!rootJsonExists && !dirJsonExists && !claudeJsonExists) {
     return {
       diagnostics: [
         {
           severity: 'error',
-          message: `No manifest at ${KIMI_PLUGIN_ROOT_PATH} or ${KIMI_PLUGIN_DIR_PATH}`,
+          message: `No manifest at ${KIMI_PLUGIN_ROOT_PATH}, ${KIMI_PLUGIN_DIR_PATH} or ${CLAUDE_PLUGIN_DIR_PATH}`,
         },
       ],
     };
   }
 
-  const manifestPath = rootJsonExists ? rootJsonPath : dirJsonPath;
-  const manifestKind: PluginManifestKind = rootJsonExists ? 'kimi-plugin-root' : 'kimi-plugin-dir';
+  const manifestPath = rootJsonExists ? rootJsonPath : dirJsonExists ? dirJsonPath : claudeJsonPath;
+  const manifestKind: PluginManifestKind = rootJsonExists ? 'kimi-plugin-root' : dirJsonExists ? 'kimi-plugin-dir' : 'claude-plugin-dir';
   const shadowedManifestPath = rootJsonExists && dirJsonExists ? dirJsonPath : undefined;
 
   let raw: unknown;
@@ -143,11 +146,42 @@ export async function parseManifest(pluginRoot: string): Promise<ParsedManifestR
     interface: readInterface(raw['interface']),
     skillInstructions,
     systemPrompt,
-    runtime: readRuntime(raw['runtime'], diagnostics),
+    runtime: raw['runtime'] === undefined && manifestKind === 'claude-plugin-dir' ? await readClaudeRuntime(pluginRoot, raw, diagnostics) : readRuntime(raw['runtime'], diagnostics),
   };
 
   const interfaceLocales = await readInterfaceLocales(pluginRoot, manifest, diagnostics);
   return { manifest, interfaceLocales, manifestKind, manifestPath, shadowedManifestPath, diagnostics };
+}
+
+async function readClaudeRuntime(root: string, manifest: Record<string, unknown>, diagnostics: PluginDiagnostic[]): Promise<PluginManifest['runtime']> {
+  const hooksPath = path.join(root, 'hooks', 'hooks.json');
+  if (!await isFile(hooksPath)) return undefined;
+  try {
+    const hooks: unknown = JSON.parse(await readFile(hooksPath, 'utf8'));
+    if (isObject(hooks) && hooks['hooks'] !== undefined) diagnostics.push({ severity: 'warn', message: 'Classic hooks in Claude hooks/hooks.json are not supported by Kimi; only modules are imported' });
+    if (!isObject(hooks) || hooks['modules'] === undefined) return undefined;
+    if (!Array.isArray(hooks['modules']) || hooks['modules'].length === 0 || hooks['modules'].length > 64) throw new Error('hooks.modules must contain between 1 and 64 relative module paths');
+    const modules = hooks['modules'].map((value: unknown) => {
+      if (typeof value !== 'string' || !value.startsWith('./') || path.isAbsolute(value)) throw new Error('Hook modules must use relative ./ paths');
+      const relative = path.relative(root, path.resolve(root, 'hooks', value));
+      if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('Hook module escapes plugin directory');
+      return './' + relative.split(path.sep).join('/');
+    });
+    const properties: Record<string, unknown> = {};
+    const options: Record<string, unknown> = {};
+    const required: string[] = [];
+    if (manifest['userConfig'] !== undefined && !isObject(manifest['userConfig'])) throw new Error('userConfig must be an object');
+    if (isObject(manifest['userConfig'])) for (const [name, value] of Object.entries(manifest['userConfig'])) {
+      if (!isObject(value) || !['string', 'number', 'integer', 'boolean', 'array', 'object'].includes(String(value['type']))) throw new Error(`Unsupported plugin option: ${name}`);
+      properties[name] = { type: value['type'], enum: Array.isArray(value['options']) ? value['options'] : undefined };
+      if (value['default'] !== undefined) options[name] = value['default'];
+      if (value['required'] === true) required.push(name);
+    }
+    return { api: 'claude-mods', modules, capabilities: [...RUNTIME_CAPABILITIES], options, optionSchema: { type: 'object', properties, required, additionalProperties: false } };
+  } catch (error) {
+    diagnostics.push({ severity: 'error', message: `Invalid Claude hook module configuration: ${(error as Error).message}` });
+    return undefined;
+  }
 }
 
 function recordUnsupportedRuntimeFields(
@@ -198,7 +232,35 @@ function readRuntime(
     diagnostics.push({ severity: 'error', message: '"runtime.modules" must not be empty' });
     return undefined;
   }
-  return { modules, capabilities };
+  const api = record['api'];
+  if (api !== undefined && api !== 'native' && api !== 'claude-mods') {
+    diagnostics.push({ severity: 'error', message: 'Unknown runtime.api' });
+    return undefined;
+  }
+  const tools: RuntimeToolDefinition[] = [];
+  if (record['tools'] !== undefined) {
+    if (!Array.isArray(record['tools']) || record['tools'].length > 64 || !capabilities.includes('tools')) {
+      diagnostics.push({ severity: 'error', message: 'runtime.tools requires the tools capability and an array of at most 64 tools' });
+      return undefined;
+    }
+    const names = new Set<string>();
+    for (const rawTool of record['tools']) {
+      const tool = rawTool as Record<string, unknown> | null;
+      if (tool === null || typeof tool !== 'object' || typeof tool['name'] !== 'string' || !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(tool['name']) || names.has(tool['name']) || typeof tool['description'] !== 'string' || !tool['description'].trim() || typeof tool['method'] !== 'string' || !/^[A-Za-z][\w-]*\.[A-Za-z][\w-]*$/.test(tool['method']) || tool['inputSchema'] === null || typeof tool['inputSchema'] !== 'object' || Array.isArray(tool['inputSchema'])) {
+        diagnostics.push({ severity: 'error', message: 'Invalid runtime tool: expected unique name, description, local domain.method and inputSchema' });
+        return undefined;
+      }
+      names.add(tool['name']);
+      if (tool['isDeferred'] !== undefined && typeof tool['isDeferred'] !== 'boolean') {
+        diagnostics.push({ severity: 'error', message: 'runtime tool isDeferred must be a boolean' });
+        return undefined;
+      }
+      tools.push({ name: tool['name'], description: tool['description'], method: tool['method'], inputSchema: tool['inputSchema'] as Record<string, unknown>, isDeferred: tool['isDeferred'] as boolean | undefined });
+    }
+  }
+  const options = record['options'];
+  if (options !== undefined && !isObject(options)) { diagnostics.push({ severity: 'error', message: 'runtime.options must be an object' }); return undefined; }
+  return { modules, capabilities, api, tools: tools.length === 0 ? undefined : tools, options: options as Record<string, unknown> | undefined };
 }
 
 async function resolveDirListField(

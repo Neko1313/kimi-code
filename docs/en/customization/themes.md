@@ -14,6 +14,7 @@ Custom themes can override the tokens below. The `dark` and `light` columns show
 | `textStrong` | `#F5F5F5` | `#1A1A1A` | Emphasized / bold text. Input dialogs, status messages |
 | `textDim` | `#888888` | `#454545` | Secondary, dimmed text. Thinking, hints, completed todos, Markdown quotes, footer status bar |
 | `textMuted` | `#6B6B6B` | `#5F5F5F` | Faintest text. Counters, scroll info, Markdown link URLs, code-block borders |
+| `canvasBackground` | `#18191B` | `#FFFFFF` | Plugin SVG canvas background |
 | `border` | `#5A5A5A` | `#737373` | Pane and editor borders, Markdown horizontal rule |
 | `borderFocus` | `#E8A838` | `#92660A` | Focus / attention border, currently only the approval panel |
 | `success` | `#4EC87E` | `#0E7A38` | Success state. `✓`, "enabled", completed |

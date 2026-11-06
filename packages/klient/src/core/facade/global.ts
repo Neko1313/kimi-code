@@ -28,6 +28,7 @@ import type {
   OAuthLoginOptions,
 } from '@moonshot-ai/agent-core-v2/app/auth/auth';
 import type { ExperimentalFeatureState } from '@moonshot-ai/agent-core-v2/app/flag/flag';
+import type { RuntimeCommand } from '@moonshot-ai/agent-core-v2/app/plugin/runtime';
 import type {
   FsBrowseResponse,
   FsHomeResponse,
@@ -257,6 +258,7 @@ export interface GlobalPluginsFacade {
   reload(): Promise<ReloadSummary>;
   checkUpdates(): Promise<readonly PluginUpdateStatus[]>;
   listCommands(): Promise<readonly PluginCommandDef[]>;
+  listRuntimeCommands(): Promise<readonly RuntimeCommand[]>;
 }
 
 export interface GlobalHostFsFacade {
@@ -598,6 +600,8 @@ export function createGlobalFacade(scoped: ScopedCaller, scopedStream: ScopedStr
         call('pluginService', 'checkUpdates', []) as Promise<readonly PluginUpdateStatus[]>,
       listCommands: () =>
         call('pluginService', 'listPluginCommands', []) as Promise<readonly PluginCommandDef[]>,
+      listRuntimeCommands: () =>
+        call('pluginRuntimeHost', 'listCommands', []) as Promise<readonly RuntimeCommand[]>,
     },
 
     capabilities: {

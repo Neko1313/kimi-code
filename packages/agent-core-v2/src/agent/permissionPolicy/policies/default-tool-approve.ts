@@ -28,6 +28,7 @@ const DEFAULT_APPROVE_TOOLS = new Set([
   'SetGoalBudget',
   'UpdateGoal',
   'select_tools',
+  'StructuredOutput',
 ]);
 
 export class DefaultToolApprovePermissionPolicyService implements PermissionPolicy {

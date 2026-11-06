@@ -7,6 +7,10 @@
  * interfaces, so klient needs no direct dependency for most of them.
  */
 
+import type { IAgentPluginRuntime } from '@moonshot-ai/agent-core-v2/app/plugin/agentRuntime';
+import type { PluginPaneInfo, RuntimeCommand, RuntimeElement } from '@moonshot-ai/agent-core-v2/app/plugin/runtime';
+import { pluginElementSchema, pluginPaneSchema, runtimeCommandSchema, pluginRuntimeContract } from '../src/contract/agent/plugins.js';
+
 import type { z } from 'zod';
 
 import type { AgentContextData } from '@moonshot-ai/agent-core-v2/agent/contextMemory/types';
@@ -737,3 +741,16 @@ const _warningEvent: AssertWire<typeof warningEventSchema, WarningEvent> = true;
 // and `agentStatusUpdatedEventSchema`: they are deliberately `z.looseObject`s
 // (index signature breaks both-ways assignability) — `permission.approval.*`
 // is not part of the protocol event union at all.
+
+const _pluginElement: AssertWire<typeof pluginElementSchema, RuntimeElement> = true;
+const _pluginPane: AssertWire<typeof pluginPaneSchema, PluginPaneInfo> = true;
+const _runtimeCommand: AssertWire<typeof runtimeCommandSchema, RuntimeCommand> = true;
+const _pluginRenderInput: AssertWire<typeof pluginRuntimeContract.renderPane.input.def.items[0], Parameters<IAgentPluginRuntime['renderPane']>[0]> = true;
+const _pluginKeyInput: AssertWire<typeof pluginRuntimeContract.dispatchKey.input.def.items[0], Parameters<IAgentPluginRuntime['dispatchKey']>[0]> = true;
+const _pluginCallInput: AssertWire<typeof pluginRuntimeContract.call.input.def.items[0], Parameters<IAgentPluginRuntime['call']>[0]> = true;
+
+const _pluginSiteInput: AssertWire<typeof pluginRuntimeContract.openSite.input.def.items[0], Parameters<IAgentPluginRuntime['openSite']>[0]> = true;
+const _pluginRenderSiteInput: AssertWire<typeof pluginRuntimeContract.renderSite.input.def.items[0], Parameters<IAgentPluginRuntime['renderSite']>[0]> = true;
+const _pluginSiteKeyInput: AssertWire<typeof pluginRuntimeContract.dispatchSiteKey.input.def.items[0], Parameters<IAgentPluginRuntime['dispatchSiteKey']>[0]> = true;
+
+const _pluginClosePaneInput: AssertWire<typeof pluginRuntimeContract.closePane.input.def.items[0], Parameters<IAgentPluginRuntime['closePane']>[0]> = true;

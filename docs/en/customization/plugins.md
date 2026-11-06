@@ -495,9 +495,84 @@ Plugin hooks reuse the same mechanism as global hooks. See [Hooks](./hooks.md) f
 
 Installing a plugin never runs its hooks by itself. They only fire when their matching event occurs while the plugin is enabled.
 
+## Experimental runtime modules
+
+Runtime plugins can handle engine events, register commands and JSON-schema methods, run native subagents, and draw interactive panes. Enable `KIMI_CODE_EXPERIMENTAL_PLUGIN_RUNTIME=1` before starting Kimi Code CLI, then enable the plugin in `/plugins`. This requires the v2 engine. Without the flag, runtime modules remain inactive.
+
+```json
+{
+  "name": "example-runtime",
+  "runtime": {
+    "modules": ["./runtime/index.ts"],
+    "capabilities": ["events", "state", "store", "ui", "command", "domains"]
+  }
+}
+```
+
+A module exports `register(on)`. Use `on(event, handler)` for middleware, `on.command(name, description, handler)` for a slash command, and `on.domain(name, methods)` for methods with input and optional output JSON schemas. Commands are qualified as `/plugin-id:name`; an unambiguous short name also works. Methods use `plugin-id.domain.method` and are available through the `Plugin` tool and `session.plugins.call()` in the SDK. The default main agent exposes `Plugin` when the experimental flag is enabled; custom profiles with an explicit tool list must include it.
+
+```ts
+import type { RuntimeRegistrar } from '@moonshot-ai/kimi-code-sdk/plugin';
+
+export function register(on: RuntimeRegistrar) {
+  on.command('panel', 'Open the example pane', async ($) => {
+    await $.ui.open({ id: 'example-runtime:panel', title: 'Example' });
+  });
+  on('ui.render', ($, event, next) => {
+    if (event.data.requestId !== 'example-runtime:panel') return next();
+    return { type: 'text', text: 'Hello from a plugin' };
+  });
+}
+```
+
+The host API checks declared capabilities for events, logging, persistent storage, client view state, clocks, processes, native agents, session tasks, commands, domains, isolated scripts, and UI. Persistent updates are atomic; `$.state` is shared by the plugin within an agent session, while `$.view` adds client isolation for UI selection. Native agents require an explicit model alias from the configured `[secondary_model.models]` pool and keep engine permission checks. Disabling or reloading a plugin cancels its timers and background jobs.
+
+Set `runtime.api` to `"claude-mods"` for the experimental Claude Mods profile. Modules use flat event arguments, object matchers, `engine.create` custom APIs and `$.ui.resolve(e)` with `Box`, `Text`, `Button`, `Select` and single-line `Input`. TSX is compiled at load. `$.state.get({ plugin, key, id? })` reads a value and version; owner-only `set` supports `ifVersion` and refuses writes during rendering. Kimi extensions remain under `$.kimi`. Omitting `runtime.api` preserves the native API shown above.
+
+Mods can import `atom`, `read` and `update` from `claude-code` for reactive state. `atom` defines a frozen address and default; `read` returns the stored value or that default without writing. `update` applies a synchronous function and retries a version-checked write when another update wins. A conflict refreshes the read snapshot for the retry. These helpers keep ownership checks and the ban on writes during rendering. Optional atom shape tags let new code treat an older stored format as absent. This does not enable unsupported render sites or elements.
+
+Persistent Mods UI now draws in `AbovePrompt` above the editor in both terminal modes. `ui.status` and expiring `ui.toast` messages appear there too. Press `Ctrl+Shift+B` to focus plugin controls, then use `Tab`, `Enter` and `Esc`. Keyboard focus reveals controls a mod normally hides until hover; controls that stay hidden or are disabled are skipped. An enabled UI plugin with a configured model creates an empty session before the first message so widgets can initialize; no model turn runs. Without an enabled UI plugin, session creation remains lazy. The adapter exposes `session.id/model/version/surfaces/usage`; usage includes native context figures and authenticated Kimi account windows cached for 30 seconds. Monthly windows use `monthly` and `monthly_code`; a mod may ignore kinds it does not recognize. Missing account windows, costs and detailed context breakdowns are not invented. Clawd supplies the terminal mascot, while Atelier supplies its context and limits band; install the two plugin directories separately.
+
+For animated SVG views, also enable `KIMI_CODE_EXPERIMENTAL_PLUGIN_GRAPHICS=1` and install Chrome or Chromium. The graphical mode plays original Clawd scenes above the editor and in plugin panes. It uses terminal images where supported and colored cells elsewhere, preserving readable labels and keyboard controls. Frames advance in the UI without starting model turns.
+
+Set `KIMI_CODE_PLUGIN_GRAPHICS=cells` to force cells or `off` to retain text mode. If needed, set `KIMI_CODE_PLUGIN_GRAPHICS_BROWSER` to an absolute browser path. The renderer uses a temporary profile, blocks external SVG resources and keeps browser sandboxing enabled; if startup fails, a notice explains the fallback to text. Custom themes can set `canvasBackground` for the drawing background.
+
+The Mods profile supports `tool.register/list/call/check`, `agent.spawn/list/stop`, `prompt.compose` and `prompt.context`, gated by the `tools`, `agent` and `prompt` capabilities. Tool calls use native validation and permissions; middleware cannot override a deny rule or automatically approve a call that requires approval. `tool.describe`, `tool.check`, `tool.call`, `prompt.section`, `prompt.compose` and `prompt.context` hooks affect actual requests and execution. `agent.spawn` hooks wrap the native spawn service, including built-in Agent calls and forks. This is a supported subset: Claude model/audio APIs, agent definitions and resume APIs, Client/raster elements and general render-site replacement remain unavailable.
+
+Original Mods packaging is also recognized: install a local plugin directory containing `.claude-plugin/plugin.json` and `hooks/hooks.json` with a `modules` array. Kimi selects the Mods adapter automatically and supplies manifest `userConfig` defaults. Original mods run as trusted code with access to all supported host namespaces. This imports hook modules; classic shell hooks in Claude's `hooks/hooks.json` are not translated.
+
+The original Anthropic `agents-md` mod is tested without source changes. Its `fs.ancestors`, `session.root/cwd` and `env.get` calls use the active environment and native Read permission checks; native manifests require the `fs`, `session` and `env` capabilities. Nested instructions enter the agent's context after a Read result, are deduplicated per agent and inherited by forks. Initial instruction context reloads after clear, compaction or runtime reload. Kimi's existing `AGENTS.md` loader remains active. Override the mod's option in `config.toml`:
+
+```toml
+[plugin_runtime.options."agents-md"]
+instructionFiles = "claude-md-and-agents-md"
+```
+
+The other accepted values are `claude-md-or-agents-md` (default), `claude-md` and `managed-only`. These modes transform the instruction set Kimi supplies; they do not import Claude's loader or managed-policy system. Reload plugins after changing the option.
+
+Mods hooks can attach one `.catch(handler)` during registration. The handler reads `next.error` and `next.called`; its `next(e)` reuses an existing continuation result, or starts the continuation once. Failed hooks without a recovery result continue with the original event or preserve the result already produced. Ordinary hooks have 10 seconds of their own time and recovery handlers have 1 second; waiting on host APIs or `next` does not consume that budget. Read `next.budget` for the live remaining time and pass `next.signal` to long operations. Expired handlers cannot issue new host calls or continuations. These timers are cooperative and cannot preempt a synchronous infinite loop in trusted Node.js code.
+
+`next.origin` identifies the caller outside the event payload: engine events use `{ plugin: 'engine', tier: 'core' }`, while plugin API calls use the plugin's name and tier `user`. A mod's own API calls skip its hooks; cycles through other plugins are also guarded. A catch can handle `next.error.kind === 're-entry'`. Declared background tasks and `$.clock` callbacks have their own execution frame. Managed tier routing and `sec-default` compatibility remain unavailable.
+
+Install and enable both `packages/core-plugins/kimi-workflow` and `packages/core-plugins/kimi-workflow-ui` to run `/workflows`. The model receives a `Workflow` tool that runs workers through the current session's internal agent harness. The optional UX plugin supplies the phase/agent browser and replaces `/tasks`. Disabling it restores the built-in task browser. Legacy process-plan commands and pending-file dispatch are no longer available.
+
+A workflow is a native background task linked to its initiating tool call. The final result arrives through the ordinary task notification; stopping the task cancels its workers. Workers with a result schema submit `StructuredOutput`; invalid results are corrected in the same agent, with at most five validation failures. The incremental journal preserves completed results across restarts and can read earlier workflow snapshots.
+
+An optional `tokenBudget` shares an output-token target across workers. Scripts can read `budget.total`, `budget.spent()` and `budget.remaining()`. The host caps individual requests, accounts reported usage and stops exhausted runs. Usage arrives asynchronously, so concurrent requests already in flight can exceed the target; missing output-token usage fails a budgeted run explicitly. `prefixStaggerMs` waits for the first worker's initial response before starting workers with the same shared prefix, up to 5000 ms by default; set it to 0 to disable the wait. Cache availability still depends on the provider.
+
+Workflow pipeline stages receive `(previousResult, originalItem, index)`. Failed branches return `null` and log their errors while other items continue; use `parallel(tasks, { failFast: true })` or `pipeline(items, stage1, stage2, { failFast: true })` to stop the run on the first branch error. Phase metadata accepts `{ title, detail?, model }` and the earlier `{ name, description?, model }` form, with an explicit model for every phase. Pass timestamps and random seeds through `args`: implicit time and `Math.random()` are unavailable in workflow scripts so resumed runs can replay the same calls.
+
+A plugin can expose model tools with `runtime.tools`: an array of `{ name, description, method, inputSchema, isDeferred? }`, requiring the `tools` capability. The method is local to the plugin, for example `workflow.run`; existing tool names cannot be replaced. Dynamic `tool.register` contributions are scoped to the session and published as `mcp__plugin-id__name`. Tool calls keep the `Plugin(plugin-id.domain.method)` permission rule, and profiles must allow `Plugin` to activate them.
+
+Use `/panes` to open registered panes. `/workflows` and plugin task views open in the editor slot, through the same dialog host as `/model`, while the transcript retains its full width. Background runs do not replace the editor automatically. Tab/Shift-Tab change controls, arrows navigate, Enter activates, PgUp/PgDn scroll long output, and Escape cancels the dialog and restores the editor. Closing the dialog does not cancel background work.
+
+In fullscreen mode, Enter on a started workflow agent opens its native transcript, including thinking and tool results. `Ctrl-O` expands details; Escape returns to the workflow dialog. The task view stops its selected native task. Plugins request this transcript from a UI callback with `$.ui.view({ agentId })`; view requests and selection are isolated by client. Inline mode displays a notice to use fullscreen mode for transcript viewing.
+
+Runtime modules are trusted code with the user's privileges: capability checks constrain the host API, not arbitrary Node.js imports. Install only trusted modules. The optional script API uses a separate QuickJS interpreter with JSON arguments and explicit host callbacks; scripts cannot access Node.js or plugin closures. Its memory and execution limits apply to the script, not the trusted module. Native hook errors are logged and fail open; Mods hooks can recover through `.catch`. Command and domain errors are returned to the caller.
+
 ## Security Model
 
-Plugins have a limited loading scope. The following operations do not occur during installation or session startup:
+Plugins have a limited loading scope. Outside the experimental runtime described above, plugins use these loading boundaries:
 
 - Command-type plugin tools and legacy tool environments are not executed
 - All paths must remain within the plugin root directory after symbolic link resolution

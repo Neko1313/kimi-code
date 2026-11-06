@@ -180,7 +180,7 @@ function shortenCwd(path: string, home: string | undefined): string {
  * back to the precomputed ratio. Counts use the shared 1024-based
  * formatter.
  */
-function formatContextStatus(usage: number, tokens?: number, maxTokens?: number): string {
+export function formatContextStatus(usage: number, tokens?: number, maxTokens?: number): string {
   if (maxTokens !== undefined && maxTokens > 0 && tokens !== undefined) {
     const pct = String(usagePercent(tokens, maxTokens));
     return `context: ${pct}% (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
@@ -206,6 +206,8 @@ export interface FooterGitBinding {
 
 export class FooterComponent implements Component {
   private state: AppState;
+  private contextOverride: Component | undefined;
+  setContextOverride(component: Component | undefined): void { this.contextOverride = component; }
   private readonly onRefresh: () => void;
   private gitBinding: ((state: AppState) => FooterGitBinding | null) | null = null;
   private gitCache: GitStatusCache | null = null;
@@ -398,11 +400,9 @@ export class FooterComponent implements Component {
     }
 
     // ── Line 2: hint (bottom-left) + context (right) ──
-    const contextText = formatContextStatus(
-      state.contextUsage,
-      state.contextTokens,
-      state.maxContextTokens,
-    );
+    const contextText = this.contextOverride === undefined
+      ? formatContextStatus(state.contextUsage, state.contextTokens, state.maxContextTokens)
+      : this.contextOverride.render(width)[0] ?? '';
     const contextWidth = visibleWidth(contextText);
     let line2: string;
     const hint = this.transientHint ?? this.warningHint;

@@ -133,6 +133,56 @@ afterEach(() => {
 });
 
 describe('AgentToolExecutorService', () => {
+  it('retries middleware calls through permissions and publishes one final transcript result', async () => {
+    const tool = new TestTool('echo');
+    registry.register(tool);
+    const checked: string[] = [];
+    executor.onBeforeExecuteTool(event => {
+      const text = (event.args as { text: string }).text;
+      checked.push(text);
+      if (text === 'denied') event.veto({ isError: true, output: 'permission denied' });
+    });
+    const middleware = executor.registerCallMiddleware(async (call, _options, next) => {
+      await next(call);
+      const retried = await next({ ...call, arguments: JSON.stringify({ text: 'retried' }) });
+      expect(retried.result.output).toBe('retried');
+      return next({ ...call, arguments: JSON.stringify({ text: 'denied' }) });
+    }, () => true);
+    const results = await execute([toolCall('retry', 'echo', { text: 'initial' })]);
+    expect(checked).toEqual(['initial', 'retried', 'denied']);
+    expect(tool.calls.map(call => call.args)).toEqual([{ text: 'initial' }, { text: 'retried' }]);
+    expect(results).toEqual([expect.objectContaining({ isError: true, output: 'permission denied' })]);
+    expect(protocolEventTypes()).toEqual(['tool.call.started', 'tool.result']);
+    middleware.dispose();
+  });
+
+  it('keeps independent tools concurrent while middleware rewrites their results', async () => {
+    let running = 0;
+    let peak = 0;
+    let release!: () => void;
+    const barrier = new Promise<void>(resolve => { release = resolve; });
+    const tool: ExecutableTool = {
+      name: 'parallel', description: 'Parallel read', parameters: { type: 'object' },
+      resolveExecution: () => ({ approvalRule: 'parallel', accesses: ToolAccesses.none(), execute: async () => {
+        running++; peak = Math.max(peak, running);
+        if (running === 2) release();
+        await barrier;
+        running--;
+        return { output: 'native' };
+      } }),
+    };
+    registry.register(tool);
+    const middleware = executor.registerCallMiddleware(async (call, _options, next) => {
+      const result = await next(call);
+      return { ...result, result: { ...result.result, output: `${result.result.output as string}:plugin` } };
+    }, () => true);
+    const results = await execute([toolCall('left', 'parallel', {}), toolCall('right', 'parallel', {})]);
+    expect(peak).toBe(2);
+    expect(results.map(result => result.output)).toEqual(['native:plugin', 'native:plugin']);
+    expect(protocolEvents.filter(event => event.type === 'tool.result')).toHaveLength(2);
+    middleware.dispose();
+  });
+
   it('resolves by interface and routes a successful tool call through execute', async () => {
     const tool = new TestTool('echo');
     registry.register(tool);

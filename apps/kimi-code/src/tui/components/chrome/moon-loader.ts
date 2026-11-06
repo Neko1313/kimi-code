@@ -1,5 +1,5 @@
 import { Text, visibleWidth } from '@moonshot-ai/pi-tui';
-import type { TUI } from '@moonshot-ai/pi-tui';
+import type { Component, TUI } from '@moonshot-ai/pi-tui';
 
 import {
   BRAILLE_SPINNER_FRAMES,
@@ -28,6 +28,12 @@ export class MoonLoader extends Text {
   private inlineText = '';
   private tip: string = '';
   private availableWidth = 0;
+  private replacement: Component | undefined;
+
+  getLabel(): string { return this.label; }
+  setReplacement(component: Component | undefined): void { this.replacement = component; }
+  override render(width: number): string[] { return this.replacement?.render(width) ?? super.render(width); }
+  renderNative(width: number): string[] { return super.render(width); }
 
   constructor(
     ui: TUI,

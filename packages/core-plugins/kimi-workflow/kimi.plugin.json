@@ -1,9 +1,92 @@
 {
   "name": "kimi-workflow",
   "version": "0.1.0",
-  "description": "Runs a plan-as-data workflow: fans work out over headless worker processes, tracks coverage and results, loops until done.",
+  "description": "Native agent workflows with isolated scripts, resumable runs, and a task browser.",
   "runtime": {
-    "modules": ["./runtime/index.ts"],
-    "capabilities": ["events", "log", "store", "process", "clock", "ui"]
+    "modules": [
+      "./runtime/index.ts"
+    ],
+    "capabilities": [
+      "events",
+      "store",
+      "clock",
+      "agent",
+      "tasks",
+      "domains",
+      "script",
+      "ui",
+      "tools",
+      "log"
+    ],
+    "api": "claude-mods",
+    "tools": [
+      {
+        "name": "Workflow",
+        "description": "Run a JavaScript workflow in the current Kimi session using the internal agent harness. Use agent(prompt, { model, ... }), pipeline(items, ...stages), parallel(tasks), phase(name) and log(text). Every agent must specify its model explicitly. Returns a background runId; inspect it with Plugin method kimi-workflow.workflow.status and control it with kimi-workflow.workflow.control. Use this tool directly for workflows; CLI workers and shell orchestration are not needed.",
+        "method": "workflow.run",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000000
+            },
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "phases": {
+              "type": "array",
+              "maxItems": 128,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "name",
+                  "model"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "args": {},
+            "concurrency": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 64
+            },
+            "resume": {
+              "type": "string"
+            },
+            "tokenBudget": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Shared output-token budget for this run; only set a target requested by the user."
+            },
+            "prefixStaggerMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "description": "Wait for a matching worker to begin responding before starting siblings (default 5000 ms; 0 disables)."
+            }
+          },
+          "required": [
+            "source"
+          ],
+          "additionalProperties": false
+        }
+      }
+    ]
   }
 }

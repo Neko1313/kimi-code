@@ -1,7 +1,16 @@
 {
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "claude-code": [
+        "../../agent-core-v2/src/app/plugin/mods.ts"
+      ]
+    }
   },
-  "include": ["runtime", "test"]
+  "include": [
+    "runtime",
+    "test",
+    "types"
+  ]
 }

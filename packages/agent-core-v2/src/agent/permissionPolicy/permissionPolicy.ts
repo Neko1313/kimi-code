@@ -16,6 +16,7 @@ export interface IAgentPermissionPolicyService {
   evaluate(
     context: ResolvedToolExecutionHookContext,
   ): Promise<PermissionPolicyEvaluation | undefined>;
+  registerReviewer(reviewer: (context: ResolvedToolExecutionHookContext, evaluation: PermissionPolicyEvaluation) => Promise<PermissionPolicyEvaluation>): import('#/_base/di/lifecycle').IDisposable;
 }
 
 export const IAgentPermissionPolicyService =

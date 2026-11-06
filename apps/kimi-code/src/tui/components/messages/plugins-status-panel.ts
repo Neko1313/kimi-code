@@ -109,6 +109,10 @@ export function buildPluginsInfoLines(input: PluginsInfoPanelInput): readonly st
   if (info.manifest?.skillInstructions !== undefined) {
     lines.push(`${muted('Skill instructions:')} ${value('present')}`);
   }
+  if (info.manifest?.runtime !== undefined) {
+    lines.push(`${muted('Runtime capabilities:')} ${value(info.manifest.runtime.capabilities.join(', '))}`);
+    lines.push(muted('Runtime modules execute trusted code when plugin_runtime is enabled.'));
+  }
   lines.push('');
   lines.push(value(`Skills (${info.manifest?.skills?.length ?? 0}):`));
   for (const dir of info.manifest?.skills ?? []) lines.push(`  ${muted('-')} ${value(dir)}`);

@@ -12,6 +12,7 @@ export type AgentBackgroundTaskInfo = SubagentTaskInfo;
 export type QuestionBackgroundTaskInfo = QuestionTaskInfo;
 
 export type BackgroundTaskInfo =
+  | import('@moonshot-ai/agent-core-v2/app/plugin/runtimeTask').RuntimeTaskInfo
   | ProcessBackgroundTaskInfo
   | AgentBackgroundTaskInfo
   | QuestionBackgroundTaskInfo;

@@ -9,6 +9,7 @@
  */
 
 import type { IAgentCommandService } from '@moonshot-ai/agent-core-v2/agent/command/agentCommand';
+import type { IAgentPluginRuntime } from '@moonshot-ai/agent-core-v2/app/plugin/agentRuntime';
 import type { IAgentMcpService } from '@moonshot-ai/agent-core-v2/agent/mcp/mcp';
 import type { IAgentEnvironmentBindingService } from '@moonshot-ai/agent-core-v2/agent/environmentBinding/environmentBinding';
 
@@ -81,6 +82,7 @@ function withoutUndefined<T extends object>(value: T): T {
 }
 
 export interface AgentFacade {
+  readonly plugins: Omit<IAgentPluginRuntime, '_serviceBrand' | 'onDidChange'>;
   prompt(input: {
     input: readonly ContentPart[];
     promptId?: string;
@@ -139,6 +141,19 @@ export interface AgentFacade {
 
 export function createAgentFacade(call: ScopedCaller, scope: ScopeRef): AgentFacade {
   return {
+    plugins: {
+      renderSite: input => call(scope, 'agentPluginRuntime', 'renderSite', [input]) as ReturnType<IAgentPluginRuntime['renderSite']>,
+      dispatchSiteKey: input => call(scope, 'agentPluginRuntime', 'dispatchSiteKey', [input]) as ReturnType<IAgentPluginRuntime['dispatchSiteKey']>,
+      getView: input => call(scope, 'agentPluginRuntime', 'getView', [input]) as ReturnType<IAgentPluginRuntime['getView']>,
+      openSite: (input) => call(scope, 'agentPluginRuntime', 'openSite', [input]) as ReturnType<IAgentPluginRuntime['openSite']>,
+      closePane: (input) => call(scope, 'agentPluginRuntime', 'closePane', [input]) as ReturnType<IAgentPluginRuntime['closePane']>,
+      listPanes: () => call(scope, 'agentPluginRuntime', 'listPanes', []) as ReturnType<IAgentPluginRuntime['listPanes']>,
+      renderPane: (input) => call(scope, 'agentPluginRuntime', 'renderPane', [input]) as ReturnType<IAgentPluginRuntime['renderPane']>,
+      dispatchKey: (input) => call(scope, 'agentPluginRuntime', 'dispatchKey', [input]) as ReturnType<IAgentPluginRuntime['dispatchKey']>,
+      listCommands: () => call(scope, 'agentPluginRuntime', 'listCommands', []) as ReturnType<IAgentPluginRuntime['listCommands']>,
+      runCommand: (input) => call(scope, 'agentPluginRuntime', 'runCommand', [input]),
+      call: (input) => call(scope, 'agentPluginRuntime', 'call', [input]),
+    },
     prompt: (input) =>
       call(scope, 'agentPromptService', 'submit', [input]) as Promise<PromptLaunchResult>,
     promptWithSkills: (input) =>

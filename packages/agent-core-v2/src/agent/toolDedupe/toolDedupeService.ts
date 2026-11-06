@@ -223,6 +223,7 @@ export class AgentToolDedupeService extends Service implements IAgentToolDedupeS
       await next();
     });
     toolExecutor.onBeforeExecuteTool((event) => {
+      if (event.origin === 'plugin') return;
       if (this.handoffPhase === 'active') {
         this.handoffVetoedCallIds.add(event.toolCall.id);
         event.veto(HANDOFF_VETO_RESULT);
@@ -239,6 +240,7 @@ export class AgentToolDedupeService extends Service implements IAgentToolDedupeS
       }
     });
     toolExecutor.hooks.onDidExecuteTool.register('toolDedupe', async (ctx, next) => {
+      if (ctx.origin === 'plugin') { await next(); return; }
       if (this.handoffPhase === 'active') {
         this.handoffVetoedCallIds.add(ctx.toolCall.id);
         ctx.result = HANDOFF_VETO_RESULT;

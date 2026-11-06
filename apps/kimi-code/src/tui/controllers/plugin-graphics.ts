@@ -4,7 +4,7 @@ import { allocateImageId, deleteKittyImage, getCapabilities, getCellDimensions, 
 import { findGraphicsBrowser, GraphicsBrowser, type GraphicsPage, type GraphicsLayout } from '#/utils/graphics/browser';
 import { currentTheme } from '#/tui/theme';
 import { GRAPHICS_IDLE_MS, GRAPHICS_FRAME_MS, GRAPHICS_VISIBILITY_TIMEOUT_MS, GRAPHICS_MAX_COLUMNS, GRAPHICS_MAX_ROWS, GRAPHICS_MAX_PIXELS } from '#/constant/plugin-graphics';
-import { graphicsCells } from '#/tui/utils/graphics-frame';
+import { graphicsCells, graphicsResolution } from '#/tui/utils/graphics-frame';
 
 export class PluginGraphics {
   private browser: GraphicsBrowser | undefined;
@@ -21,7 +21,10 @@ export class PluginGraphics {
       try {
         const mode = (process.env['KIMI_CODE_PLUGIN_GRAPHICS'] ?? 'auto').toLowerCase();
         if (['0','false','off'].includes(mode)) return false;
-        if (!['1','true','auto','cells','sextants','octants','images'].includes(mode)) throw new Error('KIMI_CODE_PLUGIN_GRAPHICS must be auto, cells, sextants, octants, images or off');
+        if (!['1','true','auto','cells','sextants','octants','octants-force','images'].includes(mode)) throw new Error('KIMI_CODE_PLUGIN_GRAPHICS must be auto, cells, sextants, octants, octants-force, images or off');
+        if (mode === 'octants' && graphicsResolution(mode, process.env['TERMINAL_EMULATOR'], process.env['VTE_VERSION']) === 'sextants') {
+          this.warning('Octant characters may be unavailable in this terminal. Plugin graphics will use sextants instead; use octants-force only if your font supports them.');
+        }
         if (mode === 'images' && getCapabilities().images === null) {
           this.warning('This terminal does not advertise an image protocol. Plugin graphics will use colored cells; use Kitty, Ghostty, WezTerm or iTerm2 for sharper images.');
         }
@@ -101,13 +104,13 @@ export class PluginGraphicsView {
     this.touched = Date.now();
     const cells = getCellDimensions();
     const mode = process.env['KIMI_CODE_PLUGIN_GRAPHICS']?.toLowerCase();
-    const images = getCapabilities().images !== null && mode !== 'cells' && mode !== 'sextants' && mode !== 'octants';
+    const images = getCapabilities().images !== null && mode !== 'cells' && mode !== 'sextants' && mode !== 'octants' && mode !== 'octants-force';
     const cellWidth = Math.max(5,Math.min(20,Math.round(cells.widthPx)));
     const cellHeight = Math.max(10,Math.min(40,Math.round(cells.heightPx)));
     columns = Math.max(1,Math.min(columns,GRAPHICS_MAX_COLUMNS)); rows = Math.max(1,Math.min(rows,GRAPHICS_MAX_ROWS,Math.floor(GRAPHICS_MAX_PIXELS/(columns*cellWidth*cellHeight*2))));
     const background = currentTheme.color('canvasBackground');
     const light = [1,3,5].map(index => Number.parseInt(background.slice(index,index+2),16)).reduce((sum,value) => sum+value,0) > 384;
-    const input = { tree, fitSvgHeight, scrollTop: this.scrollTop, columns, rows, active, width: columns * cellWidth, height: rows * cellHeight, cellWidth, cellHeight, svgScale: images ? 1.5 : 2.5, palette: currentTheme.palette, background, light, cells: !images, resolution: mode === 'octants' ? 'octants' : mode === 'sextants' ? 'sextants' : 'quadrants' };
+    const input = { tree, fitSvgHeight, scrollTop: this.scrollTop, columns, rows, active, width: columns * cellWidth, height: rows * cellHeight, cellWidth, cellHeight, svgScale: images ? 1.5 : 2.5, palette: currentTheme.palette, background, light, cells: !images, resolution: graphicsResolution(mode, process.env['TERMINAL_EMULATOR'], process.env['VTE_VERSION']) };
     const signature = JSON.stringify(input);
     if (signature !== this.signature) { this.signature = signature; this.desired = input; this.version++; }
     if (!this.busy && !this.timer) void this.paint();

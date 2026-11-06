@@ -6,6 +6,12 @@ import { GRAPHICS_QUADRANTS, GRAPHICS_SEXTANTS, GRAPHICS_OCTANTS } from '#/const
 import type { GraphicsGlyph } from '#/utils/graphics/browser';
 import { sanitizeShellOutput } from './shell-output';
 
+export function graphicsResolution(mode: string | undefined, terminalEmulator: string | undefined, vteVersion?: string): 'quadrants' | 'sextants' | 'octants' {
+  if (mode === 'octants-force') return 'octants';
+  if (mode === 'octants') return terminalEmulator === 'JetBrains-JediTerm' || vteVersion ? 'sextants' : 'octants';
+  return mode === 'sextants' ? 'sextants' : 'quadrants';
+}
+
 export async function graphicsCells(png: Buffer, columns: number, rows: number, glyphs: readonly GraphicsGlyph[], resolution: 'quadrants' | 'sextants' | 'octants' = 'quadrants'): Promise<string[]> {
   const image = await Jimp.read(png);
   const { data, width, height } = image.bitmap;

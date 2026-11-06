@@ -6,7 +6,7 @@ import { PluginGraphics } from '../../src/tui/controllers/plugin-graphics';
 import { PluginChrome } from '../../src/tui/components/chrome/plugin-chrome';
 import type { RenderElement, RuntimeElement } from '@moonshot-ai/kimi-code-sdk/plugin';
 import { GraphicsBrowser, type GraphicsPage } from '../../src/utils/graphics/browser';
-import { graphicsCells } from '../../src/tui/utils/graphics-frame';
+import { graphicsCells, graphicsResolution } from '../../src/tui/utils/graphics-frame';
 import { darkColors } from '../../src/tui/theme/colors';
 import { setCapabilities, resetCapabilitiesCache, visibleWidth } from '@moonshot-ai/pi-tui';
 import { Jimp } from 'jimp';
@@ -82,6 +82,31 @@ describe('plugin graphics opt-out', () => {
     const inverse = await graphicsCells(await one.getBuffer('image/png'),1,1,[],'octants');
     expect(inverse[0]).toContain(GRAPHICS_OCTANTS[191]);
     expect(inverse[0]).toContain('38;2;0;0;0;48;2;255;0;0');
+  });
+  it('uses supported sextants for octant mode in JetBrains and VTE terminals', async () => {
+    expect(graphicsResolution('octants', 'JetBrains-JediTerm')).toBe('sextants');
+    expect(graphicsResolution('octants', undefined, '7600')).toBe('sextants');
+    expect(graphicsResolution('octants', 'other')).toBe('octants');
+    expect(graphicsResolution('octants-force', 'JetBrains-JediTerm', '7600')).toBe('octants');
+    expect(graphicsResolution('sextants', 'JetBrains-JediTerm')).toBe('sextants');
+    expect(graphicsResolution('cells', 'JetBrains-JediTerm')).toBe('quadrants');
+    vi.stubEnv('TERMINAL_EMULATOR', 'JetBrains-JediTerm');
+    vi.stubEnv('KIMI_CODE_PLUGIN_GRAPHICS', 'octants');
+    vi.stubEnv('KIMI_CODE_PLUGIN_GRAPHICS_BROWSER', '/example/browser');
+    const warning = vi.fn();
+    const graphics = new PluginGraphics(vi.fn(), warning, vi.fn());
+    try {
+      expect(await graphics.initialize()).toBe(true);
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('sextants'));
+    } finally { graphics.dispose(); }
+    vi.stubEnv('TERMINAL_EMULATOR', '');
+    vi.stubEnv('VTE_VERSION', '7600');
+    const vteWarning = vi.fn();
+    const vteGraphics = new PluginGraphics(vi.fn(), vteWarning, vi.fn());
+    try {
+      expect(await vteGraphics.initialize()).toBe(true);
+      expect(vteWarning).toHaveBeenCalledWith(expect.stringContaining('sextants'));
+    } finally { vteGraphics.dispose(); }
   });
   it('explains when requested images fall back to terminal cells', async () => {
     vi.stubEnv('KIMI_CODE_PLUGIN_GRAPHICS', 'images');
